@@ -1,0 +1,974 @@
+﻿<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>График Этикетка</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-primary: #ffffff;
+            --bg-secondary: #f3f4f6;
+            --text-primary: #111827;
+            --text-secondary: #4b5563;
+            --accent-color: #facc15;
+            --accent-text: #111827;
+            --border-color: #e5e7eb;
+            --card-bg: #ffffff;
+            --shadow-color: rgba(0, 0, 0, 0.1);
+            --work-day-bg: rgba(74, 222, 128, 0.4); /* Светло-зеленый */
+            --off-day-bg: rgba(250, 204, 21, 0.6);  /* Ярко-желтый */
+            --holiday-color: #ef4444;
+            --weekend-color: #facc15; /* Желтый */
+            --highlight-bg: #fef9c3; /* yellow-100 */
+        }
+
+        html.dark {
+            --bg-primary: #3f3f46;
+            --bg-secondary: #27272a;
+            --text-primary: #f4f4f5;
+            --text-secondary: #a1a1aa;
+            --border-color: #52525b;
+            --card-bg: #3f3f46;
+            --shadow-color: rgba(0, 0, 0, 0.4);
+            --work-day-bg: rgba(74, 222, 128, 0.4);
+            --off-day-bg: rgba(250, 204, 21, 0.6);
+            --holiday-color: #f87171;
+            --weekend-color: #facc15;
+            --highlight-bg: #4b5563; /* zinc-600 */
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg-secondary);
+            color: var(--text-primary);
+            transition: background-color 0.3s, color 0.3s;
+        }
+
+        .card { background-color: var(--card-bg); box-shadow: 0 4px 6px -1px var(--shadow-color), 0 2px 4px -1px var(--shadow-color); }
+        .header-title { color: var(--text-primary); }
+        .text-secondary { color: var(--text-secondary); }
+        .form-label { color: var(--text-secondary); }
+        .form-input, .form-select {
+            background-color: var(--bg-primary);
+            border-color: var(--border-color);
+            color: var(--text-primary);
+        }
+        .form-input:focus, .form-select:focus {
+             --tw-ring-color: var(--accent-color);
+             border-color: var(--accent-color);
+        }
+        .btn-primary { background-color: var(--accent-color); color: var(--accent-text); }
+        .btn-primary:hover { filter: brightness(0.9); }
+        .modal-backdrop { background-color: rgba(0, 0, 0, 0.5); }
+        
+        .calendar-grid {
+            display: grid;
+            gap: 1px;
+            background-color: var(--border-color);
+        }
+        .calendar-cell, .calendar-header-cell {
+            background-color: var(--bg-primary);
+            text-align: center;
+            font-size: 0.875rem;
+            line-height: 1.25rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            transition: background-color 0.2s;
+        }
+        .calendar-cell.weekend { color: var(--weekend-color); font-weight: 600; }
+        .calendar-cell.holiday { color: var(--holiday-color); font-weight: 600; }
+        .calendar-cell.workday-override { color: var(--text-primary); font-weight: normal; }
+
+        .schedule-cell {
+            height: 40px;
+        }
+        .schedule-cell.work-day { background-color: var(--work-day-bg); }
+        .schedule-cell.off-day { background-color: var(--off-day-bg); }
+
+        .employee-card.dragging {
+            opacity: 0.5;
+            border: 2px dashed var(--accent-color);
+        }
+        
+        .date-highlight {
+            background-color: var(--highlight-bg);
+        }
+
+        .comment-indicator {
+            position: absolute;
+            bottom: 3px;
+            right: 3px;
+            width: 14px;
+            height: 14px;
+            color: var(--text-secondary);
+        }
+
+    </style>
+</head>
+<body class="antialiased">
+    
+    <!-- Auth Screen -->
+    <div id="auth-screen" class="min-h-screen flex items-center justify-center p-4">
+        <div class="card p-6 sm:p-8 rounded-2xl w-full max-w-md">
+            <h2 id="auth-title" class="text-2xl sm:text-3xl font-bold text-center mb-6 header-title">Вход в систему</h2>
+            <form id="auth-form">
+                <div class="mb-4">
+                    <label for="email" class="block text-sm font-medium form-label mb-1">Email</label>
+                    <input type="email" id="email" required class="form-input w-full px-4 py-2 border rounded-lg transition">
+                </div>
+                <div class="mb-4">
+                    <label for="password" class="block text-sm font-medium form-label mb-1">Пароль</label>
+                    <input type="password" id="password" required class="form-input w-full px-4 py-2 border rounded-lg transition">
+                </div>
+                <div id="confirm-password-container" class="mb-6 hidden">
+                     <label for="confirm-password" class="block text-sm font-medium form-label mb-1">Подтвердите пароль</label>
+                     <input type="password" id="confirm-password" class="form-input w-full px-4 py-2 border rounded-lg transition">
+                </div>
+                <button id="auth-button" type="submit" class="btn-primary w-full font-semibold py-2.5 px-4 rounded-lg transition duration-300">Войти</button>
+            </form>
+            <p id="auth-message" class="text-center mt-4 text-sm text-red-500"></p>
+            <p class="text-center mt-4 text-sm form-label">
+                <span id="auth-toggle-prompt">Нет аккаунта?</span>
+                <a href="#" id="toggle-auth-mode" class="font-semibold" style="color: var(--accent-color);">Зарегистрироваться</a>
+            </p>
+        </div>
+    </div>
+
+    <!-- Main App Screen (hidden by default) -->
+    <div id="app-screen" class="hidden p-4 sm:p-6 lg:p-8">
+        <header class="mb-6 pb-6 border-b" style="border-color: var(--border-color);">
+            <div class="flex flex-col sm:flex-row justify-between items-start gap-4">
+                <div id="user-info">
+                    <p class="text-sm text-secondary">Вы вошли как:</p>
+                    <p id="user-email" class="font-semibold header-title break-all"></p>
+                    <button id="logout-btn" class="text-sm text-red-500 hover:underline mt-1">Выйти</button>
+                </div>
+                <div class="flex items-center gap-4">
+                     <button id="history-btn" class="btn-primary text-sm font-semibold px-4 py-2 rounded-lg transition">История изменений</button>
+                    <label for="theme-toggle-input" title="Переключить тему" class="relative w-16 h-8 flex items-center bg-sky-200 dark:bg-zinc-700 rounded-full cursor-pointer p-1 transition-colors duration-300">
+                        <input type="checkbox" id="theme-toggle-input" class="sr-only peer">
+                        <span class="w-6 h-6 bg-yellow-400 dark:bg-slate-300 rounded-full shadow-md transform transition-transform duration-300 flex items-center justify-center peer-checked:translate-x-8">
+                            <svg class="h-4 w-4 text-white block dark:hidden" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 3v1m0 16v1m8.66-15.66l-.707.707M4.04 19.96l-.707.707M21 12h-1M4 12H3m16.96-7.96l-.707-.707M4.04 4.04l-.707-.707M12 12a2 2 0 100-4 2 2 0 000 4z" /></svg>
+                            <svg class="h-4 w-4 text-zinc-800 hidden dark:block" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" /></svg>
+                        </span>
+                    </label>
+                </div>
+            </div>
+            <div class="text-center mt-4">
+                 <h1 class="text-3xl sm:text-4xl font-bold header-title">График Этикетка</h1>
+            </div>
+        </header>
+
+        <main>
+             <div class="card rounded-2xl p-4 mb-6 flex flex-col sm:flex-row items-center justify-between gap-4">
+                <div class="flex items-center gap-2">
+                    <button id="prev-year-btn" class="px-3 py-1 rounded-md hover:bg-gray-200 dark:hover:bg-zinc-600 transition">&lt;&lt;</button>
+                    <button id="prev-month-btn" class="px-3 py-1 rounded-md hover:bg-gray-200 dark:hover:bg-zinc-600 transition">&lt;</button>
+                </div>
+                <h2 id="current-month-year" class="text-xl font-bold text-center"></h2>
+                <div class="flex items-center gap-2">
+                    <button id="next-month-btn" class="px-3 py-1 rounded-md hover:bg-gray-200 dark:hover:bg-zinc-600 transition">&gt;</button>
+                    <button id="next-year-btn" class="px-3 py-1 rounded-md hover:bg-gray-200 dark:hover:bg-zinc-600 transition">&gt;&gt;</button>
+                </div>
+            </div>
+
+            <div class="overflow-x-auto pb-4">
+                <div id="schedule-container" class="min-w-max">
+                    <!-- Content will be generated by JavaScript -->
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Modals -->
+    <div id="employee-modal" class="fixed inset-0 z-50 items-center justify-center hidden p-4">
+        <div class="modal-backdrop fixed inset-0"></div>
+        <div class="card p-6 rounded-2xl w-full max-w-md m-4 relative">
+            <h3 class="text-xl font-semibold mb-4 header-title" id="modal-title">Добавить сотрудника</h3>
+            <form id="employee-form">
+                <input type="hidden" id="employee-id">
+                <div class="space-y-4">
+                    <div>
+                        <label for="employee-name" class="block text-sm font-medium form-label mb-1">ФИО</label>
+                        <input type="text" id="employee-name" required class="form-input w-full px-4 py-2 border rounded-lg transition">
+                    </div>
+                    <div>
+                        <label for="employee-position" class="block text-sm font-medium form-label mb-1">Должность</label>
+                        <input type="text" id="employee-position" placeholder="Например, Продавец" class="form-input w-full px-4 py-2 border rounded-lg transition">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium form-label mb-1">Режим работы</label>
+                        <div class="flex items-center gap-2">
+                            <input type="number" id="start-hour" min="0" max="23" placeholder="ЧЧ" required class="form-input w-16 px-2 py-2 border rounded-lg transition text-center">
+                            <span>:</span>
+                            <input type="number" id="start-minute" min="0" max="59" placeholder="ММ" required class="form-input w-16 px-2 py-2 border rounded-lg transition text-center">
+                            <span class="text-secondary">-</span>
+                            <input type="number" id="end-hour" min="0" max="23" placeholder="ЧЧ" required class="form-input w-16 px-2 py-2 border rounded-lg transition text-center">
+                            <span>:</span>
+                            <input type="number" id="end-minute" min="0" max="59" placeholder="ММ" required class="form-input w-16 px-2 py-2 border rounded-lg transition text-center">
+                        </div>
+                    </div>
+                    <div>
+                        <label for="employee-schedule" class="block text-sm font-medium form-label mb-1">График (напр. 2/2 или 5/2)</label>
+                        <input type="text" id="employee-schedule" required pattern="\d+\/\d+" title="Формат X/Y, например 2/2" class="form-input w-full px-4 py-2 border rounded-lg transition">
+                    </div>
+                     <div>
+                        <label for="schedule-start-date" class="block text-sm font-medium form-label mb-1">Дата начала отсчета графика</label>
+                        <input type="date" id="schedule-start-date" required class="form-input w-full px-4 py-2 border rounded-lg transition">
+                    </div>
+                </div>
+                <div class="mt-6 flex flex-wrap justify-end gap-2">
+                    <button type="button" id="cancel-employee-modal" class="px-4 py-2 bg-gray-200 dark:bg-zinc-600 text-gray-800 dark:text-zinc-200 rounded-lg hover:bg-gray-300 dark:hover:bg-zinc-500 transition">Отмена</button>
+                    <button type="submit" class="btn-primary px-4 py-2 rounded-lg transition">Сохранить</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div id="history-modal" class="fixed inset-0 z-50 items-center justify-center hidden p-4">
+        <div class="modal-backdrop fixed inset-0"></div>
+        <div class="card p-6 rounded-2xl w-full max-w-2xl m-4 relative flex flex-col" style="max-height: 90vh;">
+            <div class="flex justify-between items-center mb-4 pb-4 border-b" style="border-color: var(--border-color);">
+                <h3 class="text-lg sm:text-xl font-semibold header-title" id="history-modal-title">История изменений</h3>
+                <button id="close-history-modal" class="text-2xl text-secondary hover:text-primary">&times;</button>
+            </div>
+            <div id="history-log-container" class="overflow-y-auto space-y-2"></div>
+        </div>
+    </div>
+
+    <div id="comment-modal" class="fixed inset-0 z-50 items-center justify-center hidden p-4">
+        <div class="modal-backdrop fixed inset-0"></div>
+        <div class="card p-6 rounded-2xl w-full max-w-md m-4 relative">
+            <h3 class="text-xl font-semibold mb-4 header-title" id="comment-modal-title">Комментарий</h3>
+            <form id="comment-form">
+                <input type="hidden" id="comment-employee-id">
+                <input type="hidden" id="comment-date">
+                <div>
+                    <label for="comment-textarea" class="block text-sm font-medium form-label mb-1">Текст комментария</label>
+                    <textarea id="comment-textarea" rows="4" class="form-input w-full px-4 py-2 border rounded-lg transition" placeholder="Введите текст..."></textarea>
+                </div>
+                <div class="mt-6 flex flex-wrap justify-end gap-2">
+                    <button type="button" id="cancel-comment-modal" class="px-4 py-2 bg-gray-200 dark:bg-zinc-600 text-gray-800 dark:text-zinc-200 rounded-lg hover:bg-gray-300 dark:hover:bg-zinc-500 transition">Отмена</button>
+                    <button type="submit" class="btn-primary px-4 py-2 rounded-lg transition">Сохранить</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    
+     <div id="date-override-modal" class="fixed inset-0 z-50 items-center justify-center hidden p-4">
+        <div class="modal-backdrop fixed inset-0"></div>
+        <div class="card p-6 rounded-2xl w-full max-w-md m-4 relative">
+            <h3 class="text-xl font-semibold mb-4 header-title" id="date-override-modal-title">Изменить статус дня</h3>
+            <form id="date-override-form">
+                <input type="hidden" id="override-date">
+                <div class="space-y-3">
+                    <p class="text-sm font-medium form-label">Статус дня</p>
+                    <div class="flex flex-col gap-2">
+                        <label class="flex items-center"><input type="radio" name="day-status" value="default" class="mr-2 accent-yellow-500">Стандартный</label>
+                        <label class="flex items-center"><input type="radio" name="day-status" value="holiday" class="mr-2 accent-yellow-500">Праздничный</label>
+                        <label class="flex items-center"><input type="radio" name="day-status" value="workday" class="mr-2 accent-yellow-500">Рабочий день</label>
+                    </div>
+                </div>
+                 <div class="mt-4">
+                    <label for="date-comment-textarea" class="block text-sm font-medium form-label mb-1">Комментарий к дате</label>
+                    <textarea id="date-comment-textarea" rows="3" class="form-input w-full px-4 py-2 border rounded-lg transition" placeholder="Например, перенос выходного..."></textarea>
+                </div>
+                <div class="mt-6 flex flex-wrap justify-end gap-2">
+                    <button type="button" id="cancel-date-override-modal" class="px-4 py-2 bg-gray-200 dark:bg-zinc-600 text-gray-800 dark:text-zinc-200 rounded-lg hover:bg-gray-300 dark:hover:bg-zinc-500 transition">Отмена</button>
+                    <button type="submit" class="btn-primary px-4 py-2 rounded-lg transition">Сохранить</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    
+    <!-- Delete Confirm Modal -->
+    <div id="delete-confirm-modal" class="hidden fixed inset-0 z-50 items-center justify-center p-4">
+        <div class="modal-backdrop fixed inset-0"></div>
+        <div class="card p-6 rounded-2xl w-full max-w-sm m-4 relative">
+            <h3 class="text-xl font-semibold mb-2 header-title">Подтверждение</h3>
+            <p id="delete-confirm-text" class="text-secondary mb-6"></p>
+            <div class="flex justify-end gap-2">
+                <button type="button" id="cancel-delete" class="px-4 py-2 bg-gray-200 dark:bg-zinc-600 text-gray-800 dark:text-zinc-200 rounded-lg hover:bg-gray-300 dark:hover:bg-zinc-500 transition">Отмена</button>
+                <button type="button" id="confirm-delete" class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition">Удалить</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Comment Display Popup -->
+    <div id="comment-display-popup" class="hidden fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 card p-6 rounded-2xl w-full max-w-md shadow-xl">
+        <p id="comment-display-text" class="text-2xl font-bold whitespace-pre-wrap header-title text-center"></p>
+    </div>
+
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, onSnapshot, addDoc, doc, updateDoc, deleteDoc, serverTimestamp, query, orderBy, getDocs, writeBatch, setDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        
+        // ВАЖНО: Убедитесь, что вы заменили этот объект на свои реальные данные из Firebase Console.
+        // Этот код не будет работать без правильной конфигурации.
+        const firebaseConfig = {
+          apiKey: "AIzaSyAlYXKx_PPECfdHI2qLmEYKLOx5z2QYDII",
+          authDomain: "grafik-36ea2.firebaseapp.com",
+          projectId: "grafik-36ea2",
+          storageBucket: "grafik-36ea2.appspot.com",
+          messagingSenderId: "943298723423",
+          appId: "1:943298723423:web:5cb6c8eba3f981e591e5ea",
+          measurementId: "G-KB6F1QPFG3"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        const auth = getAuth(app);
+
+        let employees = [];
+        let dateOverrides = {};
+        let currentDate = new Date();
+        let currentUser = null;
+        let isAdmin = false;
+        let unsubscribeEmployees = null;
+        let unsubscribeDateOverrides = null;
+        let isLoginMode = true;
+        let draggedItem = null;
+
+        const ADMIN_EMAIL = "lequangduc19865@gmail.com";
+        const RUSSIAN_HOLIDAYS_2025 = ['2025-01-01', '2025-01-02', '2025-01-03', '2025-01-04', '2025-01-05', '2025-01-06', '2025-01-07', '2025-01-08', '2025-02-23', '2025-03-08', '2025-05-01', '2025-05-09', '2025-06-12', '2025-11-04'];
+        
+        // --- ALL FUNCTION DEFINITIONS ---
+        
+        function getDaysInMonth(year, month) { return new Date(year, month + 1, 0).getDate(); }
+        function applyTheme(theme) { document.documentElement.classList.toggle('dark', theme === 'dark'); }
+        function closeEmployeeModal() { document.getElementById('employee-modal').style.display = 'none'; }
+        function closeHistoryModal() { document.getElementById('history-modal').style.display = 'none'; }
+        function closeCommentModal() { document.getElementById('comment-modal').style.display = 'none'; }
+        function closeDeleteConfirmModal() { document.getElementById('delete-confirm-modal').style.display = 'none'; }
+        function closeDateOverrideModal() { document.getElementById('date-override-modal').style.display = 'none'; }
+
+        function isGenericWorkDay(date, employee) {
+            const { schedule, startDate } = employee;
+            if (!schedule || !startDate) return false;
+            const checkDate = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+            const scheduleStartDate = new Date(Date.UTC(new Date(startDate).getFullYear(), new Date(startDate).getMonth(), new Date(startDate).getDate()));
+            const [workDays, offDays] = schedule.split('/').map(Number);
+            if (isNaN(workDays) || isNaN(offDays)) return false;
+            if (workDays === 5 && offDays === 2) {
+                const dayOfWeek = date.getDay();
+                return dayOfWeek !== 0 && dayOfWeek !== 6;
+            }
+            const diffTime = checkDate - scheduleStartDate;
+            const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+            if (diffDays < 0) return false;
+            const cycleLength = workDays + offDays;
+            if (cycleLength === 0) return false;
+            const dayInCycle = diffDays % cycleLength;
+            return dayInCycle < workDays;
+        }
+
+        function isWorkDayCalculated(date, employee) {
+            const dateString = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+            const override = dateOverrides[dateString];
+            if (override) {
+                if (override.status === 'holiday') return false;
+                if (override.status === 'workday') return true;
+            }
+            const { name } = employee;
+            if (name === "Краев Антон") {
+                const dayOfWeek = date.getDay();
+                if (RUSSIAN_HOLIDAYS_2025.includes(dateString)) return false;
+                return dayOfWeek !== 0 && dayOfWeek !== 6;
+            }
+            if (name === "Деханов Дмитрий") {
+                const oct1_2025 = new Date(Date.UTC(2025, 9, 1));
+                const checkDate = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+                if (checkDate < oct1_2025) return isGenericWorkDay(date, employee);
+                const diffDays = Math.floor((checkDate - oct1_2025) / (1000 * 60 * 60 * 24));
+                return (diffDays % 6) >= 3;
+            }
+            if (name === "Шипулина Владлена") {
+                const oct1_2025 = new Date(Date.UTC(2025, 9, 1));
+                const checkDate = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+                 if (checkDate < oct1_2025) return isGenericWorkDay(date, employee);
+                const diffDays = Math.floor((checkDate - oct1_2025) / (1000 * 60 * 60 * 24));
+                return (diffDays % 6) < 3;
+            }
+            return isGenericWorkDay(date, employee);
+        }
+
+        function isWorkDay(date, employee) {
+            const dateString = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+            if (employee.scheduleOverrides?.[dateString] !== undefined) {
+                return employee.scheduleOverrides[dateString] === 'work';
+            }
+            return isWorkDayCalculated(date, employee);
+        }
+
+        async function logAction(action) {
+            if (!currentUser) return;
+            try {
+                await addDoc(collection(db, 'history'), {
+                    timestamp: serverTimestamp(),
+                    user: currentUser.email,
+                    action: action
+                });
+            } catch (error) { console.error("Error logging action:", error); }
+        }
+
+        function getAuthErrorMessage(code) {
+            switch (code) {
+                case 'auth/wrong-password':
+                case 'auth/user-not-found':
+                case 'auth/invalid-credential':
+                    return 'Неверный email или пароль.';
+                case 'auth/email-already-in-use':
+                    return 'Этот email уже зарегистрирован.';
+                case 'auth/weak-password':
+                    return 'Пароль слишком слабый (минимум 6 символов).';
+                default:
+                    return 'Произошла ошибка аутентификации.';
+            }
+        }
+
+        function updateAuthView() {
+            const title = document.getElementById('auth-title');
+            const button = document.getElementById('auth-button');
+            const confirmPassContainer = document.getElementById('confirm-password-container');
+            const togglePrompt = document.getElementById('auth-toggle-prompt');
+            const toggleLink = document.getElementById('toggle-auth-mode');
+            if (isLoginMode) {
+                title.textContent = 'Вход в систему';
+                button.textContent = 'Войти';
+                confirmPassContainer.classList.add('hidden');
+                document.getElementById('confirm-password').required = false;
+                togglePrompt.textContent = 'Нет аккаунта? ';
+                toggleLink.textContent = 'Зарегистрироваться';
+            } else {
+                title.textContent = 'Регистрация';
+                button.textContent = 'Зарегистрироваться';
+                confirmPassContainer.classList.remove('hidden');
+                document.getElementById('confirm-password').required = true;
+                togglePrompt.textContent = 'Уже есть аккаунт? ';
+                toggleLink.textContent = 'Войти';
+            }
+        }
+        
+        function openEmployeeModal(employee = null) {
+            const form = document.getElementById('employee-form');
+            form.reset();
+            document.getElementById('modal-title').textContent = employee ? "Редактировать сотрудника" : "Добавить сотрудника";
+            document.getElementById('employee-id').value = employee ? employee.id : '';
+            if (employee) {
+                document.getElementById('employee-name').value = employee.name;
+                document.getElementById('employee-position').value = employee.position || '';
+                document.getElementById('employee-schedule').value = employee.schedule;
+                document.getElementById('schedule-start-date').value = employee.startDate;
+                if (employee.hours && employee.hours.includes('-')) {
+                    const parts = employee.hours.split('-');
+                    const startTime = parts[0].trim().split(':');
+                    const endTime = parts[1].trim().split(':');
+                    if (startTime.length === 2 && endTime.length === 2) {
+                        document.getElementById('start-hour').value = startTime[0];
+                        document.getElementById('start-minute').value = startTime[1];
+                        document.getElementById('end-hour').value = endTime[0];
+                        document.getElementById('end-minute').value = endTime[1];
+                    }
+                }
+            }
+            document.getElementById('employee-modal').style.display = 'flex';
+        }
+        
+        async function openHistoryModal() {
+            const container = document.getElementById('history-log-container');
+            container.innerHTML = '<p class="text-secondary">Загрузка истории...</p>';
+            document.getElementById('history-modal').style.display = 'flex';
+            try {
+                const historyQuery = query(collection(db, 'history'), orderBy('timestamp', 'desc'));
+                const snapshot = await getDocs(historyQuery);
+                if (snapshot.empty) {
+                     container.innerHTML = '<p class="text-secondary">История пуста.</p>';
+                     return;
+                }
+                container.innerHTML = '';
+                snapshot.forEach(doc => {
+                    const log = doc.data();
+                    const logItem = document.createElement('div');
+                    logItem.className = 'p-2 rounded-lg';
+                    logItem.style.backgroundColor = 'var(--bg-secondary)';
+                    logItem.innerHTML = `<p class="text-sm"><span class="font-semibold">${log.action}</span></p><p class="text-xs text-secondary">${log.timestamp?.toDate().toLocaleString('ru-RU') || 'Только что'} - ${log.user}</p>`;
+                    container.appendChild(logItem);
+                });
+            } catch(error) { console.error("Error loading history: ", error); }
+        }
+        
+        function openCommentModal(employeeId, dateString) {
+            const employee = employees.find(emp => emp.id === employeeId);
+            if (!employee) return;
+            const date = new Date(dateString.replace(/-/g, '/'));
+            const formattedDate = date.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' });
+            document.getElementById('comment-modal-title').textContent = `Комментарий для ${employee.name} на ${formattedDate}`;
+            const currentComment = employee.scheduleComments?.[dateString] || '';
+            document.getElementById('comment-textarea').value = currentComment;
+            document.getElementById('comment-employee-id').value = employeeId;
+            document.getElementById('comment-date').value = dateString;
+            document.getElementById('comment-modal').style.display = 'flex';
+        }
+
+        async function handleSaveComment(e) {
+            e.preventDefault();
+            if (!isAdmin) return;
+            const employeeId = document.getElementById('comment-employee-id').value;
+            const dateString = document.getElementById('comment-date').value;
+            const commentText = document.getElementById('comment-textarea').value.trim();
+            const employee = employees.find(emp => emp.id === employeeId);
+            if (!employee) return;
+            const newComments = { ...(employee.scheduleComments || {}) };
+            if (commentText) newComments[dateString] = commentText;
+            else delete newComments[dateString];
+            try {
+                await updateDoc(doc(db, 'employees', employeeId), { scheduleComments: newComments });
+                const logMessage = commentText ? `Добавлен/изменен комментарий для "${employee.name}" на ${dateString}` : `Удален комментарий для "${employee.name}" на ${dateString}`;
+                await logAction(logMessage);
+            } catch (error) { console.error("Error saving comment:", error); }
+            closeCommentModal();
+        }
+
+        function openDeleteConfirmModal(employee) {
+            const modal = document.getElementById('delete-confirm-modal');
+            document.getElementById('delete-confirm-text').textContent = `Удалить сотрудника "${employee.name}"? Его график останется в прошлом, но будет убран из текущего и будущих месяцев.`;
+            document.getElementById('confirm-delete').dataset.id = employee.id;
+            document.getElementById('confirm-delete').dataset.name = employee.name;
+            modal.style.display = 'flex';
+        }
+        
+        function openDateOverrideModal(dateString) {
+            const modal = document.getElementById('date-override-modal');
+            const form = document.getElementById('date-override-form');
+            form.reset();
+            const date = new Date(dateString.replace(/-/g, '/'));
+            const formattedDate = date.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' });
+            document.getElementById('date-override-modal-title').textContent = `Изменить статус дня: ${formattedDate}`;
+            document.getElementById('override-date').value = dateString;
+            const override = dateOverrides[dateString];
+            if (override) {
+                form.elements['day-status'].value = override.status || 'default';
+                document.getElementById('date-comment-textarea').value = override.comment || '';
+            } else {
+                form.elements['day-status'].value = 'default';
+            }
+            modal.style.display = 'flex';
+        }
+        
+        async function handleSaveDateOverride(e) {
+            e.preventDefault();
+            if (!isAdmin) return;
+            const dateString = document.getElementById('override-date').value;
+            const status = document.getElementById('date-override-form').elements['day-status'].value;
+            const comment = document.getElementById('date-comment-textarea').value.trim();
+            const docRef = doc(db, 'dateOverrides', dateString);
+            try {
+                if (status === 'default' && !comment) {
+                    await deleteDoc(docRef);
+                    await logAction(`Сброшен статус и комментарий для дня ${dateString}`);
+                } else {
+                    await setDoc(docRef, { status, comment });
+                    await logAction(`Изменен статус/комментарий для дня ${dateString} на "${status}"`);
+                }
+            } catch(error) {
+                console.error("Error saving date override:", error);
+                alert("Не удалось сохранить изменения для даты.");
+            }
+            closeDateOverrideModal();
+        }
+
+        async function handleConfirmDelete() {
+            const employeeId = document.getElementById('confirm-delete').dataset.id;
+            const employeeName = document.getElementById('confirm-delete').dataset.name;
+            if (employeeId) {
+                try {
+                    const today = new Date();
+                    const deactivationDate = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().split('T')[0];
+                    await updateDoc(doc(db, 'employees', employeeId), { activeUntil: deactivationDate });
+                    await logAction(`Деактивирован сотрудник "${employeeName}"`);
+                    closeDeleteConfirmModal();
+                } catch (error) {
+                    console.error("Error deactivating employee:", error);
+                    closeDeleteConfirmModal();
+                }
+            }
+        }
+
+        function handleEmployeeHeaderClick(e) {
+            if (!isAdmin) return;
+            if (e.target.closest('#add-employee-btn')) {
+                openEmployeeModal();
+            }
+            const editBtn = e.target.closest('.edit-employee-btn');
+            if (editBtn) {
+                const employee = employees.find(emp => emp.id === editBtn.dataset.id);
+                if (employee) openEmployeeModal(employee);
+            }
+            const deleteBtn = e.target.closest('.delete-employee-btn');
+            if (deleteBtn) {
+                const employee = employees.find(emp => emp.id === deleteBtn.dataset.id);
+                if(employee) openDeleteConfirmModal(employee);
+            }
+        }
+
+        function handleDragStart(e) {
+            if (!isAdmin) return;
+            const target = e.target.closest('.employee-card');
+            if (target) {
+                draggedItem = target;
+                setTimeout(() => { target.classList.add('dragging'); }, 0);
+            }
+        }
+        function handleDragEnd() {
+            if (!isAdmin || !draggedItem) return;
+            draggedItem.classList.remove('dragging');
+            draggedItem = null;
+        }
+        function handleDragOver(e) {
+            e.preventDefault();
+            if (!isAdmin || !draggedItem) return;
+            const container = e.target.closest('.calendar-grid');
+            if (!container) return;
+            const afterElement = getDragAfterElement(container, e.clientX);
+            // Reordering logic for vertical layout needs to be different and is more complex.
+            // This is a placeholder and may not work correctly for column reordering.
+        }
+        function handleDrop(e) {
+            e.preventDefault();
+            if (!isAdmin) return;
+            // updateEmployeeOrder(); // Reordering logic needs to be implemented for vertical view
+        }
+        function getDragAfterElement(container, x) {
+            const draggableElements = [...container.querySelectorAll('.employee-card:not(.dragging)')];
+            return draggableElements.reduce((closest, child) => {
+                const box = child.getBoundingClientRect();
+                const offset = x - box.left - box.width / 2;
+                if (offset < 0 && offset > closest.offset) {
+                    return { offset: offset, element: child };
+                } else {
+                    return closest;
+                }
+            }, { offset: Number.NEGATIVE_INFINITY }).element;
+        }
+        async function updateEmployeeOrder() {
+            const orderedCards = [...document.querySelectorAll('#schedule-container .employee-card')];
+            const newOrderedIds = orderedCards.map(c => c.dataset.id);
+            const newFullOrder = [];
+            newOrderedIds.forEach(id => {
+                const employee = employees.find(e => e.id === id);
+                if (employee) newFullOrder.push(employee);
+            });
+            employees.forEach(emp => {
+                if (!newOrderedIds.includes(emp.id)) newFullOrder.push(emp);
+            });
+
+            const batch = writeBatch(db);
+            newFullOrder.forEach((emp, index) => {
+                const docRef = doc(db, 'employees', emp.id);
+                batch.update(docRef, { orderIndex: index });
+            });
+            try {
+                await batch.commit();
+                logAction("Изменен порядок сотрудников");
+            } catch (error) { console.error("Error updating employee order:", error); }
+        }
+        
+        async function handleSaveEmployee(e) {
+            e.preventDefault();
+            if (!isAdmin) return;
+            const pad = (num) => String(num).padStart(2, '0');
+            const hoursString = `${pad(document.getElementById('start-hour').value)}:${pad(document.getElementById('start-minute').value)} - ${pad(document.getElementById('end-hour').value)}:${pad(document.getElementById('end-minute').value)}`;
+            const id = document.getElementById('employee-id').value;
+            const employeeData = {
+                name: document.getElementById('employee-name').value,
+                position: document.getElementById('employee-position').value,
+                hours: hoursString,
+                schedule: document.getElementById('employee-schedule').value,
+                startDate: document.getElementById('schedule-start-date').value,
+            };
+            const collectionRef = collection(db, 'employees');
+            try {
+                if (id) {
+                    await updateDoc(doc(collectionRef, id), employeeData);
+                    await logAction(`Изменен сотрудник "${employeeData.name}"`);
+                } else {
+                    employeeData.orderIndex = employees.length;
+                    await addDoc(collectionRef, employeeData);
+                    await logAction(`Создан сотрудник "${employeeData.name}"`);
+                }
+            } catch (error) { console.error("Error saving employee:", error); }
+            closeEmployeeModal();
+        }
+
+        async function handleScheduleCellClick(e) {
+            if (!isAdmin) return;
+            const target = e.target.closest('.schedule-cell');
+            if (!target?.dataset.employeeId) return;
+            const employee = employees.find(emp => emp.id === target.dataset.employeeId);
+            if (!employee) return;
+            const date = new Date(target.dataset.date.replace(/-/g, '/'));
+            let isCurrentlyWork = isWorkDay(date, employee);
+            
+            const newOverrideStatus = isCurrentlyWork ? 'off' : 'work';
+            const newOverrides = { ...(employee.scheduleOverrides || {}), [target.dataset.date]: newOverrideStatus };
+            try {
+                await updateDoc(doc(db, 'employees', target.dataset.employeeId), { scheduleOverrides: newOverrides });
+                await logAction(`Изменен статус дня ${target.dataset.date} на "${newOverrideStatus}" для "${employee.name}"`);
+            } catch (error) { console.error("Error updating override:", error); }
+        }
+
+        function handleCalendarContextMenu(e) {
+            e.preventDefault();
+            if (!isAdmin) return;
+            const dateCell = e.target.closest('[data-date-cell="true"]');
+            if (dateCell) openDateOverrideModal(dateCell.dataset.date);
+            const scheduleCell = e.target.closest('.schedule-cell');
+            if (scheduleCell) openCommentModal(scheduleCell.dataset.employeeId, scheduleCell.dataset.date);
+        }
+
+        function handleCalendarMouseOver(e) {
+            const target = e.target.closest('.schedule-cell, [data-date-cell="true"]');
+            if (!target) return;
+            // Highlight row
+            const day = target.dataset.day;
+            if (day) {
+                 document.querySelectorAll(`[data-day="${day}"]`).forEach(el => el.classList.add('date-highlight'));
+            }
+            let comment = null;
+            if (target.dataset.employeeId) {
+                const employee = employees.find(emp => emp.id === target.dataset.employeeId);
+                comment = employee?.scheduleComments?.[target.dataset.date];
+            } else {
+                 const dateCell = e.target.closest('[data-date-cell="true"]');
+                 if(dateCell) comment = dateOverrides[dateCell.dataset.date]?.comment;
+            }
+            if (comment) {
+                document.getElementById('comment-display-text').textContent = comment;
+                document.getElementById('comment-display-popup').classList.remove('hidden');
+            }
+        }
+        
+        function handleCalendarMouseOut(e) {
+            document.getElementById('comment-display-popup').classList.add('hidden');
+            const target = e.target.closest('.schedule-cell, [data-date-cell="true"]');
+            if (!target) return;
+            const day = target.dataset.day;
+            if (day) {
+                document.querySelectorAll(`[data-day="${day}"]`).forEach(el => el.classList.remove('date-highlight'));
+            }
+        }
+
+        function setupAuthEventListeners() {
+            document.getElementById('toggle-auth-mode').addEventListener('click', (e) => { e.preventDefault(); isLoginMode = !isLoginMode; updateAuthView(); });
+            document.getElementById('auth-form').addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const email = document.getElementById('email').value;
+                const password = document.getElementById('password').value;
+                const messageEl = document.getElementById('auth-message');
+                messageEl.textContent = '';
+                try {
+                    if (isLoginMode) {
+                        await signInWithEmailAndPassword(auth, email, password);
+                    } else {
+                        const confirmPassword = document.getElementById('confirm-password').value;
+                        if (password !== confirmPassword) {
+                            messageEl.textContent = 'Пароли не совпадают.';
+                            return;
+                        }
+                        await createUserWithEmailAndPassword(auth, email, password);
+                    }
+                } catch (error) {
+                    messageEl.textContent = getAuthErrorMessage(error.code);
+                }
+            });
+        }
+
+        function setupAppEventListeners() {
+            document.getElementById('logout-btn').addEventListener('click', () => signOut(auth));
+            document.getElementById('theme-toggle-input').addEventListener('change', (e) => {
+                const newTheme = e.target.checked ? 'dark' : 'light';
+                localStorage.setItem('theme', newTheme);
+                applyTheme(newTheme);
+            });
+            document.getElementById('prev-year-btn').addEventListener('click', () => { currentDate.setFullYear(currentDate.getFullYear() - 1); renderApp(); });
+            document.getElementById('prev-month-btn').addEventListener('click', () => { currentDate.setMonth(currentDate.getMonth() - 1); renderApp(); });
+            document.getElementById('next-month-btn').addEventListener('click', () => { currentDate.setMonth(currentDate.getMonth() + 1); renderApp(); });
+            document.getElementById('next-year-btn').addEventListener('click', () => { currentDate.setFullYear(currentDate.getFullYear() + 1); renderApp(); });
+
+            const scheduleContainer = document.getElementById('schedule-container');
+            
+            scheduleContainer.addEventListener('click', (e) => {
+                 if (e.target.closest('.edit-date-btn')) {
+                    openDateOverrideModal(e.target.closest('.edit-date-btn').dataset.date);
+                    return;
+                }
+                if (e.target.closest('.edit-employee-btn, .delete-employee-btn, #add-employee-btn')) {
+                    handleEmployeeHeaderClick(e);
+                } else if (e.target.closest('.schedule-cell')) {
+                    handleScheduleCellClick(e);
+                }
+            });
+
+            scheduleContainer.addEventListener('contextmenu', handleCalendarContextMenu);
+            scheduleContainer.addEventListener('mouseover', handleCalendarMouseOver);
+            scheduleContainer.addEventListener('mouseout', handleCalendarMouseOut);
+            scheduleContainer.addEventListener('dragstart', handleDragStart);
+            scheduleContainer.addEventListener('dragend', handleDragEnd);
+            scheduleContainer.addEventListener('dragover', handleDragOver);
+            scheduleContainer.addEventListener('drop', handleDrop);
+            
+            document.getElementById('employee-form').addEventListener('submit', handleSaveEmployee);
+            document.getElementById('cancel-employee-modal').addEventListener('click', closeEmployeeModal);
+            document.querySelector('#employee-modal .modal-backdrop').addEventListener('click', closeEmployeeModal);
+            document.getElementById('history-btn').addEventListener('click', openHistoryModal);
+            document.getElementById('close-history-modal').addEventListener('click', closeHistoryModal);
+            document.querySelector('#history-modal .modal-backdrop').addEventListener('click', closeHistoryModal);
+            document.getElementById('comment-form').addEventListener('submit', handleSaveComment);
+            document.getElementById('cancel-comment-modal').addEventListener('click', closeCommentModal);
+            document.querySelector('#comment-modal .modal-backdrop').addEventListener('click', closeCommentModal);
+            document.getElementById('cancel-delete').addEventListener('click', closeDeleteConfirmModal);
+            document.querySelector('#delete-confirm-modal .modal-backdrop').addEventListener('click', closeDeleteConfirmModal);
+            document.getElementById('confirm-delete').addEventListener('click', handleConfirmDelete);
+            document.getElementById('date-override-form').addEventListener('submit', handleSaveDateOverride);
+            document.getElementById('cancel-date-override-modal').addEventListener('click', closeDateOverrideModal);
+            document.querySelector('#date-override-modal .modal-backdrop').addEventListener('click', closeDateOverrideModal);
+        }
+
+        function renderApp() {
+            const year = currentDate.getFullYear();
+            const month = currentDate.getMonth();
+            const daysInMonth = getDaysInMonth(year, month);
+            
+            const monthName = currentDate.toLocaleString('ru-RU', { month: 'long' });
+            document.getElementById('current-month-year').textContent = `${monthName.charAt(0).toUpperCase() + monthName.slice(1)} ${year}`;
+
+            const scheduleContainer = document.getElementById('schedule-container');
+            if (!scheduleContainer) {
+                console.error("Schedule container not found!");
+                return;
+            }
+            scheduleContainer.innerHTML = ''; // Clear previous grid
+
+            const firstDayOfMonth = new Date(year, month, 1);
+            const activeEmployees = employees.filter(e => !e.activeUntil || new Date(e.activeUntil) > firstDayOfMonth);
+            
+            const gridEl = document.createElement('div');
+            gridEl.className = 'calendar-grid';
+            const adminColumnCount = isAdmin ? 1 : 0;
+            gridEl.style.gridTemplateColumns = `100px repeat(${activeEmployees.length + adminColumnCount}, minmax(140px, 1fr))`;
+            
+            // --- Build Header Row (Employee Names) ---
+            let headerHTML = '<div class="calendar-header-cell p-2 font-semibold">Дата</div>';
+
+            activeEmployees.forEach(emp => {
+                const adminControls = isAdmin ? `<div class="absolute bottom-1 right-1 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity"><button class="edit-employee-btn p-0.5 rounded hover:bg-yellow-200 dark:hover:bg-zinc-600" data-id="${emp.id}" title="Редактировать"><svg class="w-4 h-4 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.5L16.732 3.732z"></path></svg></button><button class="delete-employee-btn p-0.5 rounded hover:bg-red-200 dark:hover:bg-zinc-600" data-id="${emp.id}" title="Удалить"><svg class="w-4 h-4 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg></button></div>` : '';
+                headerHTML += `<div class="employee-card group calendar-header-cell p-2 relative" ${isAdmin ? 'draggable="true"' : ''} data-id="${emp.id}">
+                                <div class="flex flex-col text-center justify-center items-center text-xs">
+                                    <span class="font-semibold text-sm">${emp.name}</span>
+                                    <span class="text-secondary">(${emp.position || ' '})</span>
+                                    <span class="text-secondary">${emp.hours}</span>
+                                    <span class="text-secondary">${emp.schedule}</span>
+                                </div>
+                               ${adminControls}
+                               </div>`;
+            });
+
+            if (isAdmin) {
+                headerHTML += `<button id="add-employee-btn" title="Добавить сотрудника" class="calendar-header-cell flex items-center justify-center cursor-pointer hover:bg-gray-100 dark:hover:bg-zinc-700 transition"><svg class="w-6 h-6 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path></svg></button>`;
+            }
+            
+            // --- Build Day Rows ---
+            let dayRowsHTML = '';
+            for (let day = 1; day <= daysInMonth; day++) {
+                const date = new Date(year, month, day);
+                const dayOfWeek = date.getDay();
+                const dateString = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                
+                let dateCellClasses = 'calendar-cell ';
+                const override = dateOverrides[dateString];
+                if (override) {
+                    if (override.status === 'holiday') dateCellClasses += 'holiday ';
+                    else if (override.status === 'workday') dateCellClasses += 'workday-override ';
+                } else {
+                    if (dayOfWeek === 0 || dayOfWeek === 6) dateCellClasses += 'weekend ';
+                    if (RUSSIAN_HOLIDAYS_2025.includes(dateString)) dateCellClasses += 'holiday ';
+                }
+                const dayName = date.toLocaleString('ru-RU', { weekday: 'short' });
+                const dateCommentIndicator = dateOverrides[dateString]?.comment ? `<svg class="comment-indicator" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg>` : '';
+                const dateAdminControls = isAdmin ? `<button class="edit-date-btn p-0.5 rounded hover:bg-yellow-200 dark:hover:bg-zinc-600 absolute bottom-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity" data-date="${dateString}" title="Изменить статус дня"><svg class="w-4 h-4 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.5L16.732 3.732z"></path></svg></button>` : '';
+                
+                dayRowsHTML += `<div id="date-cell-${day}" class="${dateCellClasses} group flex-col relative" data-date="${dateString}" data-date-cell="true" data-day="${day}"><span class="font-bold text-lg">${day}</span><span class="text-xs text-secondary">${dayName}</span>${dateCommentIndicator}${dateAdminControls}</div>`;
+
+                activeEmployees.forEach(emp => {
+                    const isWork = isWorkDay(date, emp);
+                    const cellClass = isWork ? 'work-day' : 'off-day';
+                    const empCommentIndicator = emp.scheduleComments?.[dateString] ? `<svg class="comment-indicator" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg>` : '';
+                    dayRowsHTML += `<div class="calendar-cell schedule-cell ${cellClass} ${isAdmin ? 'cursor-pointer' : ''}" data-employee-id="${emp.id}" data-date="${dateString}" data-day="${day}">${empCommentIndicator}</div>`;
+                });
+
+                 if (isAdmin) {
+                    dayRowsHTML += `<div class="calendar-cell"></div>`;
+                }
+            }
+
+            gridEl.innerHTML = headerHTML + dayRowsHTML;
+            scheduleContainer.appendChild(gridEl);
+        }
+
+        function initializeAppLogic() {
+            document.getElementById('user-email').textContent = currentUser.email;
+
+            if (unsubscribeEmployees) unsubscribeEmployees();
+            const employeesQuery = query(collection(db, 'employees'), orderBy('orderIndex'));
+            unsubscribeEmployees = onSnapshot(employeesQuery, (snapshot) => {
+                employees = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                renderApp();
+            });
+
+            if (unsubscribeDateOverrides) unsubscribeDateOverrides();
+            unsubscribeDateOverrides = onSnapshot(collection(db, 'dateOverrides'), (snapshot) => {
+                dateOverrides = {};
+                snapshot.forEach(doc => {
+                    dateOverrides[doc.id] = doc.data();
+                });
+                renderApp();
+            });
+        }
+        
+        document.addEventListener('DOMContentLoaded', () => {
+            const themeToggleInput = document.getElementById('theme-toggle-input');
+            const savedTheme = localStorage.getItem('theme') || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+            applyTheme(savedTheme);
+            themeToggleInput.checked = savedTheme === 'dark';
+
+            onAuthStateChanged(auth, user => {
+                const authScreen = document.getElementById('auth-screen');
+                const appScreen = document.getElementById('app-screen');
+                if (user) {
+                    currentUser = user;
+                    isAdmin = user.email.toLowerCase() === ADMIN_EMAIL.toLowerCase();
+                    authScreen.classList.add('hidden');
+                    appScreen.classList.remove('hidden');
+                    initializeAppLogic();
+                } else {
+                    currentUser = null;
+                    isAdmin = false;
+                    authScreen.classList.remove('hidden');
+                    appScreen.classList.add('hidden');
+                    if (unsubscribeEmployees) unsubscribeEmployees();
+                    if (unsubscribeDateOverrides) unsubscribeDateOverrides();
+                }
+            });
+            setupAuthEventListeners();
+            setupAppEventListeners();
+        });
+    </script>
+</body>
+</html>
+
