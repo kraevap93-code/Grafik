@@ -967,8 +967,9 @@
         }
 
         function renderApp() {
+            const scheduleContainer = document.getElementById('schedule-container');
             if (!currentScheduleId) {
-                document.getElementById('schedule-container').innerHTML = `<p class="text-center p-8 text-secondary">Выберите или создайте участок, чтобы начать работу.</p>`;
+                scheduleContainer.innerHTML = `<p class="text-center p-8 text-secondary">Выберите или создайте участок, чтобы начать работу.</p>`;
                 return;
             }
             const year = currentDate.getFullYear();
@@ -978,7 +979,6 @@
             const monthName = currentDate.toLocaleString('ru-RU', { month: 'long' });
             document.getElementById('current-month-year').textContent = `${monthName.charAt(0).toUpperCase() + monthName.slice(1)} ${year}`;
 
-            const scheduleContainer = document.getElementById('schedule-container');
             if (!scheduleContainer) return;
             scheduleContainer.innerHTML = ''; 
 
@@ -988,8 +988,29 @@
             const gridEl = document.createElement('div');
             gridEl.className = 'calendar-grid';
 
-            const adminColumnCount = isAdmin ? 1 : 0;
-            gridEl.style.gridTemplateColumns = `100px repeat(${activeEmployees.length + adminColumnCount}, minmax(140px, 1fr))`;
+            const container = scheduleContainer.parentElement;
+            let gridTemplateString = `100px repeat(${activeEmployees.length + (isAdmin ? 1 : 0)}, minmax(140px, 1fr))`;
+
+            if (container && activeEmployees.length > 0) {
+                const dateColWidth = 100;
+                const adminColWidth = isAdmin ? 70 : 0;
+                const totalFixedWidth = dateColWidth + adminColWidth;
+                const totalGaps = activeEmployees.length + (isAdmin ? 1 : 0);
+
+                const availableWidthForEmployees = container.clientWidth - totalFixedWidth - totalGaps;
+                const requiredWidthForAllEmployees = activeEmployees.length * 140;
+
+                let employeeCols;
+                if (requiredWidthForAllEmployees > availableWidthForEmployees) {
+                    employeeCols = `repeat(${activeEmployees.length}, minmax(0, 1fr))`;
+                } else {
+                    employeeCols = `repeat(${activeEmployees.length}, 240px)`;
+                }
+                
+                gridTemplateString = `100px ${employeeCols} ${isAdmin ? '70px' : ''}`;
+            }
+
+            gridEl.style.gridTemplateColumns = gridTemplateString;
             
             let headerHTML = '<div class="calendar-header-cell p-2 font-semibold">Дата</div>';
 
