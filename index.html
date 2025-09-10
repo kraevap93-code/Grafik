@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
@@ -56,8 +56,8 @@
             color: var(--text-primary);
         }
         .form-input:focus, .form-select:focus {
-             --tw-ring-color: var(--accent-color);
-             border-color: var(--accent-color);
+            --tw-ring-color: var(--accent-color);
+            border-color: var(--accent-color);
         }
         .btn-primary { background-color: var(--accent-color); color: var(--accent-text); }
         .btn-primary:hover { filter: brightness(0.9); }
@@ -85,6 +85,10 @@
 
         .schedule-cell {
             height: 40px;
+            align-items: flex-start;
+            justify-content: flex-start;
+            padding: 4px;
+            overflow: hidden;
         }
         .schedule-cell.work-day { background-color: var(--work-day-bg); }
         .schedule-cell.off-day { background-color: var(--off-day-bg); }
@@ -92,6 +96,7 @@
         .employee-card.dragging {
             opacity: 0.5;
             border: 2px dashed var(--accent-color);
+            cursor: grabbing;
         }
         
         .date-highlight {
@@ -100,11 +105,12 @@
 
         .comment-indicator {
             position: absolute;
-            bottom: 3px;
+            top: 3px;
             right: 3px;
-            width: 14px;
-            height: 14px;
-            color: var(--text-secondary);
+            width: 18px;
+            height: 18px;
+            color: var(--accent-color);
+            filter: drop-shadow(0 1px 1px rgba(0,0,0,0.4));
         }
 
     </style>
@@ -125,8 +131,8 @@
                     <input type="password" id="password" required class="form-input w-full px-4 py-2 border rounded-lg transition">
                 </div>
                 <div id="confirm-password-container" class="mb-6 hidden">
-                     <label for="confirm-password" class="block text-sm font-medium form-label mb-1">Подтвердите пароль</label>
-                     <input type="password" id="confirm-password" class="form-input w-full px-4 py-2 border rounded-lg transition">
+                    <label for="confirm-password" class="block text-sm font-medium form-label mb-1">Подтвердите пароль</label>
+                    <input type="password" id="confirm-password" class="form-input w-full px-4 py-2 border rounded-lg transition">
                 </div>
                 <button id="auth-button" type="submit" class="btn-primary w-full font-semibold py-2.5 px-4 rounded-lg transition duration-300">Войти</button>
             </form>
@@ -148,7 +154,7 @@
                     <button id="logout-btn" class="text-sm text-red-500 hover:underline mt-1">Выйти</button>
                 </div>
                 <div class="flex items-center gap-4">
-                     <button id="history-btn" class="btn-primary text-sm font-semibold px-4 py-2 rounded-lg transition">История изменений</button>
+                    <button id="history-btn" class="btn-primary text-sm font-semibold px-4 py-2 rounded-lg transition">История изменений</button>
                     <label for="theme-toggle-input" title="Переключить тему" class="relative w-16 h-8 flex items-center bg-sky-200 dark:bg-zinc-700 rounded-full cursor-pointer p-1 transition-colors duration-300">
                         <input type="checkbox" id="theme-toggle-input" class="sr-only peer">
                         <span class="w-6 h-6 bg-yellow-400 dark:bg-slate-300 rounded-full shadow-md transform transition-transform duration-300 flex items-center justify-center peer-checked:translate-x-8">
@@ -159,12 +165,12 @@
                 </div>
             </div>
             <div class="text-center mt-4">
-                 <h1 class="text-3xl sm:text-4xl font-bold header-title">График Этикетка</h1>
+                <h1 class="text-3xl sm:text-4xl font-bold header-title">График Этикетка</h1>
             </div>
         </header>
 
         <main>
-             <div class="card rounded-2xl p-4 mb-6 flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div class="card rounded-2xl p-4 mb-6 flex flex-col sm:flex-row items-center justify-between gap-4">
                 <div class="flex items-center gap-2">
                     <button id="prev-year-btn" class="px-3 py-1 rounded-md hover:bg-gray-200 dark:hover:bg-zinc-600 transition">&lt;&lt;</button>
                     <button id="prev-month-btn" class="px-3 py-1 rounded-md hover:bg-gray-200 dark:hover:bg-zinc-600 transition">&lt;</button>
@@ -216,7 +222,7 @@
                         <label for="employee-schedule" class="block text-sm font-medium form-label mb-1">График (напр. 2/2 или 5/2)</label>
                         <input type="text" id="employee-schedule" required pattern="\d+\/\d+" title="Формат X/Y, например 2/2" class="form-input w-full px-4 py-2 border rounded-lg transition">
                     </div>
-                     <div>
+                    <div>
                         <label for="schedule-start-date" class="block text-sm font-medium form-label mb-1">Дата начала отсчета графика</label>
                         <input type="date" id="schedule-start-date" required class="form-input w-full px-4 py-2 border rounded-lg transition">
                     </div>
@@ -259,7 +265,7 @@
         </div>
     </div>
     
-     <div id="date-override-modal" class="fixed inset-0 z-50 items-center justify-center hidden p-4">
+    <div id="date-override-modal" class="fixed inset-0 z-50 items-center justify-center hidden p-4">
         <div class="modal-backdrop fixed inset-0"></div>
         <div class="card p-6 rounded-2xl w-full max-w-md m-4 relative">
             <h3 class="text-xl font-semibold mb-4 header-title" id="date-override-modal-title">Изменить статус дня</h3>
@@ -273,7 +279,7 @@
                         <label class="flex items-center"><input type="radio" name="day-status" value="workday" class="mr-2 accent-yellow-500">Рабочий день</label>
                     </div>
                 </div>
-                 <div class="mt-4">
+                <div class="mt-4">
                     <label for="date-comment-textarea" class="block text-sm font-medium form-label mb-1">Комментарий к дате</label>
                     <textarea id="date-comment-textarea" rows="3" class="form-input w-full px-4 py-2 border rounded-lg transition" placeholder="Например, перенос выходного..."></textarea>
                 </div>
@@ -337,7 +343,8 @@
 
         const ADMIN_EMAIL = "lequangduc19865@gmail.com";
         const RUSSIAN_HOLIDAYS_2025 = ['2025-01-01', '2025-01-02', '2025-01-03', '2025-01-04', '2025-01-05', '2025-01-06', '2025-01-07', '2025-01-08', '2025-02-23', '2025-03-08', '2025-05-01', '2025-05-09', '2025-06-12', '2025-11-04'];
-        
+        const COMMENT_ICON_SVG = `<svg class="comment-indicator" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M18 5v8a2 2 0 01-2 2h-5l-5 4v-4H4a2 2 0 01-2-2V5a2 2 0 012-2h12a2 2 0 012 2zM9 9a1 1 0 11-2 0 1 1 0 012 0zm4 0a1 1 0 11-2 0 1 1 0 012 0z" clip-rule="evenodd"></path></svg>`;
+
         // --- ALL FUNCTION DEFINITIONS ---
         
         function getDaysInMonth(year, month) { return new Date(year, month + 1, 0).getDate(); }
@@ -391,7 +398,7 @@
             if (name === "Шипулина Владлена") {
                 const oct1_2025 = new Date(Date.UTC(2025, 9, 1));
                 const checkDate = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
-                 if (checkDate < oct1_2025) return isGenericWorkDay(date, employee);
+                if (checkDate < oct1_2025) return isGenericWorkDay(date, employee);
                 const diffDays = Math.floor((checkDate - oct1_2025) / (1000 * 60 * 60 * 24));
                 return (diffDays % 6) < 3;
             }
@@ -488,8 +495,8 @@
                 const historyQuery = query(collection(db, 'history'), orderBy('timestamp', 'desc'));
                 const snapshot = await getDocs(historyQuery);
                 if (snapshot.empty) {
-                     container.innerHTML = '<p class="text-secondary">История пуста.</p>';
-                     return;
+                    container.innerHTML = '<p class="text-secondary">История пуста.</p>';
+                    return;
                 }
                 container.innerHTML = '';
                 snapshot.forEach(doc => {
@@ -622,7 +629,10 @@
             const target = e.target.closest('.employee-card');
             if (target) {
                 draggedItem = target;
-                setTimeout(() => { target.classList.add('dragging'); }, 0);
+                // Use a short timeout to allow the browser to render the drag image before applying styles
+                setTimeout(() => { 
+                    if (draggedItem) target.classList.add('dragging'); 
+                }, 0);
             }
         }
         function handleDragEnd() {
@@ -633,17 +643,29 @@
         function handleDragOver(e) {
             e.preventDefault();
             if (!isAdmin || !draggedItem) return;
-            const container = e.target.closest('.calendar-grid');
+            const container = draggedItem.parentElement; // The .calendar-grid
             if (!container) return;
+        
             const afterElement = getDragAfterElement(container, e.clientX);
-            // Reordering logic for vertical layout needs to be different and is more complex.
-            // This is a placeholder and may not work correctly for column reordering.
+        
+            if (afterElement === null) {
+                const addBtn = container.querySelector('#add-employee-btn');
+                if (addBtn) {
+                    container.insertBefore(draggedItem, addBtn);
+                } else {
+                    container.appendChild(draggedItem);
+                }
+            } else {
+                container.insertBefore(draggedItem, afterElement);
+            }
         }
-        function handleDrop(e) {
+        
+        async function handleDrop(e) {
             e.preventDefault();
-            if (!isAdmin) return;
-            // updateEmployeeOrder(); // Reordering logic needs to be implemented for vertical view
+            if (!isAdmin || !draggedItem) return;
+            await updateEmployeeOrder();
         }
+
         function getDragAfterElement(container, x) {
             const draggableElements = [...container.querySelectorAll('.employee-card:not(.dragging)')];
             return draggableElements.reduce((closest, child) => {
@@ -656,16 +678,23 @@
                 }
             }, { offset: Number.NEGATIVE_INFINITY }).element;
         }
+
         async function updateEmployeeOrder() {
             const orderedCards = [...document.querySelectorAll('#schedule-container .employee-card')];
             const newOrderedIds = orderedCards.map(c => c.dataset.id);
             const newFullOrder = [];
+            
+            // Add the re-ordered visible employees first
             newOrderedIds.forEach(id => {
                 const employee = employees.find(e => e.id === id);
                 if (employee) newFullOrder.push(employee);
             });
+            
+            // Add any other employees (e.g., inactive ones) that weren't in the DOM
             employees.forEach(emp => {
-                if (!newOrderedIds.includes(emp.id)) newFullOrder.push(emp);
+                if (!newOrderedIds.includes(emp.id)) {
+                    newFullOrder.push(emp);
+                }
             });
 
             const batch = writeBatch(db);
@@ -673,10 +702,15 @@
                 const docRef = doc(db, 'employees', emp.id);
                 batch.update(docRef, { orderIndex: index });
             });
+            
             try {
                 await batch.commit();
-                logAction("Изменен порядок сотрудников");
-            } catch (error) { console.error("Error updating employee order:", error); }
+                await logAction("Изменен порядок сотрудников");
+            } catch (error) { 
+                console.error("Error updating employee order:", error); 
+                // If the update fails, re-render to revert visual changes
+                renderApp(); 
+            }
         }
         
         async function handleSaveEmployee(e) {
@@ -738,15 +772,15 @@
             // Highlight row
             const day = target.dataset.day;
             if (day) {
-                 document.querySelectorAll(`[data-day="${day}"]`).forEach(el => el.classList.add('date-highlight'));
+                document.querySelectorAll(`[data-day="${day}"]`).forEach(el => el.classList.add('date-highlight'));
             }
             let comment = null;
             if (target.dataset.employeeId) {
                 const employee = employees.find(emp => emp.id === target.dataset.employeeId);
                 comment = employee?.scheduleComments?.[target.dataset.date];
             } else {
-                 const dateCell = e.target.closest('[data-date-cell="true"]');
-                 if(dateCell) comment = dateOverrides[dateCell.dataset.date]?.comment;
+                const dateCell = e.target.closest('[data-date-cell="true"]');
+                if(dateCell) comment = dateOverrides[dateCell.dataset.date]?.comment;
             }
             if (comment) {
                 document.getElementById('comment-display-text').textContent = comment;
@@ -804,7 +838,7 @@
             const scheduleContainer = document.getElementById('schedule-container');
             
             scheduleContainer.addEventListener('click', (e) => {
-                 if (e.target.closest('.edit-date-btn')) {
+                if (e.target.closest('.edit-date-btn')) {
                     openDateOverrideModal(e.target.closest('.edit-date-btn').dataset.date);
                     return;
                 }
@@ -860,6 +894,7 @@
             
             const gridEl = document.createElement('div');
             gridEl.className = 'calendar-grid';
+
             const adminColumnCount = isAdmin ? 1 : 0;
             gridEl.style.gridTemplateColumns = `100px repeat(${activeEmployees.length + adminColumnCount}, minmax(140px, 1fr))`;
             
@@ -868,15 +903,16 @@
 
             activeEmployees.forEach(emp => {
                 const adminControls = isAdmin ? `<div class="absolute bottom-1 right-1 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity"><button class="edit-employee-btn p-0.5 rounded hover:bg-yellow-200 dark:hover:bg-zinc-600" data-id="${emp.id}" title="Редактировать"><svg class="w-4 h-4 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.5L16.732 3.732z"></path></svg></button><button class="delete-employee-btn p-0.5 rounded hover:bg-red-200 dark:hover:bg-zinc-600" data-id="${emp.id}" title="Удалить"><svg class="w-4 h-4 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg></button></div>` : '';
-                headerHTML += `<div class="employee-card group calendar-header-cell p-2 relative" ${isAdmin ? 'draggable="true"' : ''} data-id="${emp.id}">
-                                <div class="flex flex-col text-center justify-center items-center text-xs">
-                                    <span class="font-semibold text-sm">${emp.name}</span>
-                                    <span class="text-secondary">(${emp.position || ' '})</span>
-                                    <span class="text-secondary">${emp.hours}</span>
-                                    <span class="text-secondary">${emp.schedule}</span>
-                                </div>
-                               ${adminControls}
-                               </div>`;
+
+                headerHTML += `<div class="employee-card group calendar-header-cell p-2 relative" ${isAdmin ? 'draggable="true" style="cursor: grab;"' : ''} data-id="${emp.id}">
+                                    <div class="flex flex-col text-center justify-center items-center text-xs">
+                                        <span class="font-semibold text-sm">${emp.name}</span>
+                                        <span class="text-secondary">(${emp.position || ' '})</span>
+                                        <span class="text-secondary">${emp.hours}</span>
+                                        <span class="text-secondary">${emp.schedule}</span>
+                                    </div>
+                                   ${adminControls}
+                                   </div>`;
             });
 
             if (isAdmin) {
@@ -900,7 +936,7 @@
                     if (RUSSIAN_HOLIDAYS_2025.includes(dateString)) dateCellClasses += 'holiday ';
                 }
                 const dayName = date.toLocaleString('ru-RU', { weekday: 'short' });
-                const dateCommentIndicator = dateOverrides[dateString]?.comment ? `<svg class="comment-indicator" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg>` : '';
+                const dateCommentIndicator = dateOverrides[dateString]?.comment ? COMMENT_ICON_SVG : '';
                 const dateAdminControls = isAdmin ? `<button class="edit-date-btn p-0.5 rounded hover:bg-yellow-200 dark:hover:bg-zinc-600 absolute bottom-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity" data-date="${dateString}" title="Изменить статус дня"><svg class="w-4 h-4 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.5L16.732 3.732z"></path></svg></button>` : '';
                 
                 dayRowsHTML += `<div id="date-cell-${day}" class="${dateCellClasses} group flex-col relative" data-date="${dateString}" data-date-cell="true" data-day="${day}"><span class="font-bold text-lg">${day}</span><span class="text-xs text-secondary">${dayName}</span>${dateCommentIndicator}${dateAdminControls}</div>`;
@@ -908,11 +944,11 @@
                 activeEmployees.forEach(emp => {
                     const isWork = isWorkDay(date, emp);
                     const cellClass = isWork ? 'work-day' : 'off-day';
-                    const empCommentIndicator = emp.scheduleComments?.[dateString] ? `<svg class="comment-indicator" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg>` : '';
+                    const empCommentIndicator = emp.scheduleComments?.[dateString] ? COMMENT_ICON_SVG : '';
                     dayRowsHTML += `<div class="calendar-cell schedule-cell ${cellClass} ${isAdmin ? 'cursor-pointer' : ''}" data-employee-id="${emp.id}" data-date="${dateString}" data-day="${day}">${empCommentIndicator}</div>`;
                 });
 
-                 if (isAdmin) {
+                if (isAdmin) {
                     dayRowsHTML += `<div class="calendar-cell"></div>`;
                 }
             }
