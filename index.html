@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>График Этикетка</title>
+    <title>График</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
@@ -112,7 +112,9 @@
             color: var(--accent-color);
             filter: drop-shadow(0 1px 1px rgba(0,0,0,0.4));
         }
-
+        .rotate-180 {
+            transform: rotate(180deg);
+        }
     </style>
 </head>
 <body class="antialiased">
@@ -164,8 +166,21 @@
                     </label>
                 </div>
             </div>
-            <div class="text-center mt-4">
-                <h1 class="text-3xl sm:text-4xl font-bold header-title">График Этикетка</h1>
+             <div class="text-center mt-4 relative">
+                <button id="schedule-title-button" class="inline-flex items-center gap-2 text-3xl sm:text-4xl font-bold header-title hover:opacity-80 transition-opacity">
+                    <span id="schedule-title-text">График</span>
+                    <svg id="schedule-chevron" class="w-6 h-6 transition-transform duration-200" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg>
+                </button>
+                <div id="schedule-dropdown" class="hidden absolute z-10 mt-2 w-64 origin-top-right right-1/2 translate-x-1/2 card rounded-xl p-2 text-left shadow-2xl">
+                    <div id="schedule-list" class="space-y-1 max-h-60 overflow-y-auto">
+                        <!-- Schedule items will be populated here -->
+                    </div>
+                    <div class="border-t my-2" style="border-color: var(--border-color);"></div>
+                    <button id="add-schedule-btn-dropdown" class="w-full text-left px-4 py-2 text-sm rounded-md hover:bg-gray-100 dark:hover:bg-zinc-700 transition flex items-center gap-2">
+                        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" /></svg>
+                        Добавить участок
+                    </button>
+                </div>
             </div>
         </header>
 
@@ -304,6 +319,24 @@
         </div>
     </div>
     
+    <!-- Add Schedule Modal -->
+    <div id="add-schedule-modal" class="hidden fixed inset-0 z-50 items-center justify-center p-4">
+        <div class="modal-backdrop fixed inset-0"></div>
+        <div class="card p-6 rounded-2xl w-full max-w-sm m-4 relative">
+            <h3 class="text-xl font-semibold mb-4 header-title">Добавить новый участок</h3>
+            <form id="add-schedule-form">
+                <div>
+                    <label for="schedule-name-input" class="block text-sm font-medium form-label mb-1">Название участка</label>
+                    <input type="text" id="schedule-name-input" required class="form-input w-full px-4 py-2 border rounded-lg transition">
+                </div>
+                <div class="mt-6 flex justify-end gap-2">
+                    <button type="button" id="cancel-add-schedule" class="px-4 py-2 bg-gray-200 dark:bg-zinc-600 text-gray-800 dark:text-zinc-200 rounded-lg hover:bg-gray-300 dark:hover:bg-zinc-500 transition">Отмена</button>
+                    <button type="submit" class="btn-primary px-4 py-2 rounded-lg transition">Сохранить</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <!-- Comment Display Popup -->
     <div id="comment-display-popup" class="hidden fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 card p-6 rounded-2xl w-full max-w-md shadow-xl">
         <p id="comment-display-text" class="text-2xl font-bold whitespace-pre-wrap header-title text-center"></p>
@@ -315,8 +348,6 @@
         import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, collection, onSnapshot, addDoc, doc, updateDoc, deleteDoc, serverTimestamp, query, orderBy, getDocs, writeBatch, setDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
         
-        // ВАЖНО: Убедитесь, что вы заменили этот объект на свои реальные данные из Firebase Console.
-        // Этот код не будет работать без правильной конфигурации.
         const firebaseConfig = {
           apiKey: "AIzaSyAlYXKx_PPECfdHI2qLmEYKLOx5z2QYDII",
           authDomain: "grafik-36ea2.firebaseapp.com",
@@ -331,13 +362,18 @@
         const db = getFirestore(app);
         const auth = getAuth(app);
 
+        let schedules = [];
+        let currentScheduleId = null;
         let employees = [];
         let dateOverrides = {};
         let currentDate = new Date();
         let currentUser = null;
         let isAdmin = false;
+
+        let unsubscribeSchedules = null;
         let unsubscribeEmployees = null;
         let unsubscribeDateOverrides = null;
+        
         let isLoginMode = true;
         let draggedItem = null;
 
@@ -354,6 +390,21 @@
         function closeCommentModal() { document.getElementById('comment-modal').style.display = 'none'; }
         function closeDeleteConfirmModal() { document.getElementById('delete-confirm-modal').style.display = 'none'; }
         function closeDateOverrideModal() { document.getElementById('date-override-modal').style.display = 'none'; }
+        function closeAddScheduleModal() { document.getElementById('add-schedule-modal').style.display = 'none'; }
+
+        function toggleScheduleDropdown() {
+            const dropdown = document.getElementById('schedule-dropdown');
+            const chevron = document.getElementById('schedule-chevron');
+            dropdown.classList.toggle('hidden');
+            chevron.classList.toggle('rotate-180');
+        }
+
+        function closeScheduleDropdown() {
+            const dropdown = document.getElementById('schedule-dropdown');
+            const chevron = document.getElementById('schedule-chevron');
+            dropdown.classList.add('hidden');
+            chevron.classList.remove('rotate-180');
+        }
 
         function isGenericWorkDay(date, employee) {
             const { schedule, startDate } = employee;
@@ -414,14 +465,20 @@
         }
 
         async function logAction(action) {
-            if (!currentUser) return;
+            if (!currentUser || !currentScheduleId) return;
             try {
-                await addDoc(collection(db, 'history'), {
+                const historyCol = collection(db, 'schedules', currentScheduleId, 'history');
+                await addDoc(historyCol, {
                     timestamp: serverTimestamp(),
                     user: currentUser.email,
                     action: action
                 });
-            } catch (error) { console.error("Error logging action:", error); }
+            } catch (error) { 
+                console.error("Error logging action:", error); 
+                if (isAdmin) {
+                    alert("Ошибка записи в историю. Проверьте правила безопасности Firestore для пути 'schedules/" + currentScheduleId + "/history'.");
+                }
+            }
         }
 
         function getAuthErrorMessage(code) {
@@ -488,11 +545,13 @@
         }
         
         async function openHistoryModal() {
+            if (!currentScheduleId) return;
             const container = document.getElementById('history-log-container');
             container.innerHTML = '<p class="text-secondary">Загрузка истории...</p>';
             document.getElementById('history-modal').style.display = 'flex';
             try {
-                const historyQuery = query(collection(db, 'history'), orderBy('timestamp', 'desc'));
+                const historyCol = collection(db, 'schedules', currentScheduleId, 'history');
+                const historyQuery = query(historyCol, orderBy('timestamp', 'desc'));
                 const snapshot = await getDocs(historyQuery);
                 if (snapshot.empty) {
                     container.innerHTML = '<p class="text-secondary">История пуста.</p>';
@@ -525,7 +584,7 @@
 
         async function handleSaveComment(e) {
             e.preventDefault();
-            if (!isAdmin) return;
+            if (!isAdmin || !currentScheduleId) return;
             const employeeId = document.getElementById('comment-employee-id').value;
             const dateString = document.getElementById('comment-date').value;
             const commentText = document.getElementById('comment-textarea').value.trim();
@@ -535,7 +594,8 @@
             if (commentText) newComments[dateString] = commentText;
             else delete newComments[dateString];
             try {
-                await updateDoc(doc(db, 'employees', employeeId), { scheduleComments: newComments });
+                const employeeDocRef = doc(db, 'schedules', currentScheduleId, 'employees', employeeId);
+                await updateDoc(employeeDocRef, { scheduleComments: newComments });
                 const logMessage = commentText ? `Добавлен/изменен комментарий для "${employee.name}" на ${dateString}` : `Удален комментарий для "${employee.name}" на ${dateString}`;
                 await logAction(logMessage);
             } catch (error) { console.error("Error saving comment:", error); }
@@ -570,11 +630,11 @@
         
         async function handleSaveDateOverride(e) {
             e.preventDefault();
-            if (!isAdmin) return;
+            if (!isAdmin || !currentScheduleId) return;
             const dateString = document.getElementById('override-date').value;
             const status = document.getElementById('date-override-form').elements['day-status'].value;
             const comment = document.getElementById('date-comment-textarea').value.trim();
-            const docRef = doc(db, 'dateOverrides', dateString);
+            const docRef = doc(db, 'schedules', currentScheduleId, 'dateOverrides', dateString);
             try {
                 if (status === 'default' && !comment) {
                     await deleteDoc(docRef);
@@ -591,13 +651,15 @@
         }
 
         async function handleConfirmDelete() {
+            if (!currentScheduleId) return;
             const employeeId = document.getElementById('confirm-delete').dataset.id;
             const employeeName = document.getElementById('confirm-delete').dataset.name;
             if (employeeId) {
                 try {
                     const today = new Date();
                     const deactivationDate = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().split('T')[0];
-                    await updateDoc(doc(db, 'employees', employeeId), { activeUntil: deactivationDate });
+                    const employeeDocRef = doc(db, 'schedules', currentScheduleId, 'employees', employeeId);
+                    await updateDoc(employeeDocRef, { activeUntil: deactivationDate });
                     await logAction(`Деактивирован сотрудник "${employeeName}"`);
                     closeDeleteConfirmModal();
                 } catch (error) {
@@ -629,7 +691,6 @@
             const target = e.target.closest('.employee-card');
             if (target) {
                 draggedItem = target;
-                // Use a short timeout to allow the browser to render the drag image before applying styles
                 setTimeout(() => { 
                     if (draggedItem) target.classList.add('dragging'); 
                 }, 0);
@@ -643,7 +704,7 @@
         function handleDragOver(e) {
             e.preventDefault();
             if (!isAdmin || !draggedItem) return;
-            const container = draggedItem.parentElement; // The .calendar-grid
+            const container = draggedItem.parentElement;
             if (!container) return;
         
             const afterElement = getDragAfterElement(container, e.clientX);
@@ -680,17 +741,16 @@
         }
 
         async function updateEmployeeOrder() {
+            if (!currentScheduleId) return;
             const orderedCards = [...document.querySelectorAll('#schedule-container .employee-card')];
             const newOrderedIds = orderedCards.map(c => c.dataset.id);
             const newFullOrder = [];
             
-            // Add the re-ordered visible employees first
             newOrderedIds.forEach(id => {
                 const employee = employees.find(e => e.id === id);
                 if (employee) newFullOrder.push(employee);
             });
             
-            // Add any other employees (e.g., inactive ones) that weren't in the DOM
             employees.forEach(emp => {
                 if (!newOrderedIds.includes(emp.id)) {
                     newFullOrder.push(emp);
@@ -699,7 +759,7 @@
 
             const batch = writeBatch(db);
             newFullOrder.forEach((emp, index) => {
-                const docRef = doc(db, 'employees', emp.id);
+                const docRef = doc(db, 'schedules', currentScheduleId, 'employees', emp.id);
                 batch.update(docRef, { orderIndex: index });
             });
             
@@ -708,14 +768,13 @@
                 await logAction("Изменен порядок сотрудников");
             } catch (error) { 
                 console.error("Error updating employee order:", error); 
-                // If the update fails, re-render to revert visual changes
                 renderApp(); 
             }
         }
         
         async function handleSaveEmployee(e) {
             e.preventDefault();
-            if (!isAdmin) return;
+            if (!isAdmin || !currentScheduleId) return;
             const pad = (num) => String(num).padStart(2, '0');
             const hoursString = `${pad(document.getElementById('start-hour').value)}:${pad(document.getElementById('start-minute').value)} - ${pad(document.getElementById('end-hour').value)}:${pad(document.getElementById('end-minute').value)}`;
             const id = document.getElementById('employee-id').value;
@@ -726,7 +785,7 @@
                 schedule: document.getElementById('employee-schedule').value,
                 startDate: document.getElementById('schedule-start-date').value,
             };
-            const collectionRef = collection(db, 'employees');
+            const collectionRef = collection(db, 'schedules', currentScheduleId, 'employees');
             try {
                 if (id) {
                     await updateDoc(doc(collectionRef, id), employeeData);
@@ -739,9 +798,26 @@
             } catch (error) { console.error("Error saving employee:", error); }
             closeEmployeeModal();
         }
+        
+        async function handleSaveSchedule(e) {
+            e.preventDefault();
+            const scheduleNameInput = document.getElementById('schedule-name-input');
+            const scheduleName = scheduleNameInput.value.trim();
+            if (scheduleName) {
+                try {
+                    const docRef = await addDoc(collection(db, 'schedules'), { name: scheduleName });
+                    switchSchedule(docRef.id);
+                } catch (error) {
+                    console.error("Error adding new schedule:", error);
+                    alert("Не удалось добавить новый участок.");
+                } finally {
+                    closeAddScheduleModal();
+                }
+            }
+        }
 
         async function handleScheduleCellClick(e) {
-            if (!isAdmin) return;
+            if (!isAdmin || !currentScheduleId) return;
             const target = e.target.closest('.schedule-cell');
             if (!target?.dataset.employeeId) return;
             const employee = employees.find(emp => emp.id === target.dataset.employeeId);
@@ -752,7 +828,8 @@
             const newOverrideStatus = isCurrentlyWork ? 'off' : 'work';
             const newOverrides = { ...(employee.scheduleOverrides || {}), [target.dataset.date]: newOverrideStatus };
             try {
-                await updateDoc(doc(db, 'employees', target.dataset.employeeId), { scheduleOverrides: newOverrides });
+                const employeeDocRef = doc(db, 'schedules', currentScheduleId, 'employees', target.dataset.employeeId);
+                await updateDoc(employeeDocRef, { scheduleOverrides: newOverrides });
                 await logAction(`Изменен статус дня ${target.dataset.date} на "${newOverrideStatus}" для "${employee.name}"`);
             } catch (error) { console.error("Error updating override:", error); }
         }
@@ -769,7 +846,6 @@
         function handleCalendarMouseOver(e) {
             const target = e.target.closest('.schedule-cell, [data-date-cell="true"]');
             if (!target) return;
-            // Highlight row
             const day = target.dataset.day;
             if (day) {
                 document.querySelectorAll(`[data-day="${day}"]`).forEach(el => el.classList.add('date-highlight'));
@@ -872,9 +948,29 @@
             document.getElementById('date-override-form').addEventListener('submit', handleSaveDateOverride);
             document.getElementById('cancel-date-override-modal').addEventListener('click', closeDateOverrideModal);
             document.querySelector('#date-override-modal .modal-backdrop').addEventListener('click', closeDateOverrideModal);
+            
+            document.getElementById('schedule-title-button').addEventListener('click', (e) => {
+                e.stopPropagation();
+                toggleScheduleDropdown();
+            });
+            document.getElementById('add-schedule-btn-dropdown').addEventListener('click', handleAddSchedule);
+            document.addEventListener('click', (e) => {
+                const dropdown = document.getElementById('schedule-dropdown');
+                const titleButton = document.getElementById('schedule-title-button');
+                if (!dropdown.classList.contains('hidden') && !titleButton.contains(e.target) && !dropdown.contains(e.target)) {
+                    closeScheduleDropdown();
+                }
+            });
+            document.getElementById('add-schedule-form').addEventListener('submit', handleSaveSchedule);
+            document.getElementById('cancel-add-schedule').addEventListener('click', closeAddScheduleModal);
+            document.querySelector('#add-schedule-modal .modal-backdrop').addEventListener('click', closeAddScheduleModal);
         }
 
         function renderApp() {
+            if (!currentScheduleId) {
+                document.getElementById('schedule-container').innerHTML = `<p class="text-center p-8 text-secondary">Выберите или создайте участок, чтобы начать работу.</p>`;
+                return;
+            }
             const year = currentDate.getFullYear();
             const month = currentDate.getMonth();
             const daysInMonth = getDaysInMonth(year, month);
@@ -883,11 +979,8 @@
             document.getElementById('current-month-year').textContent = `${monthName.charAt(0).toUpperCase() + monthName.slice(1)} ${year}`;
 
             const scheduleContainer = document.getElementById('schedule-container');
-            if (!scheduleContainer) {
-                console.error("Schedule container not found!");
-                return;
-            }
-            scheduleContainer.innerHTML = ''; // Clear previous grid
+            if (!scheduleContainer) return;
+            scheduleContainer.innerHTML = ''; 
 
             const firstDayOfMonth = new Date(year, month, 1);
             const activeEmployees = employees.filter(e => !e.activeUntil || new Date(e.activeUntil) > firstDayOfMonth);
@@ -898,12 +991,10 @@
             const adminColumnCount = isAdmin ? 1 : 0;
             gridEl.style.gridTemplateColumns = `100px repeat(${activeEmployees.length + adminColumnCount}, minmax(140px, 1fr))`;
             
-            // --- Build Header Row (Employee Names) ---
             let headerHTML = '<div class="calendar-header-cell p-2 font-semibold">Дата</div>';
 
             activeEmployees.forEach(emp => {
                 const adminControls = isAdmin ? `<div class="absolute bottom-1 right-1 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity"><button class="edit-employee-btn p-0.5 rounded hover:bg-yellow-200 dark:hover:bg-zinc-600" data-id="${emp.id}" title="Редактировать"><svg class="w-4 h-4 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.5L16.732 3.732z"></path></svg></button><button class="delete-employee-btn p-0.5 rounded hover:bg-red-200 dark:hover:bg-zinc-600" data-id="${emp.id}" title="Удалить"><svg class="w-4 h-4 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg></button></div>` : '';
-
                 headerHTML += `<div class="employee-card group calendar-header-cell p-2 relative" ${isAdmin ? 'draggable="true" style="cursor: grab;"' : ''} data-id="${emp.id}">
                                     <div class="flex flex-col text-center justify-center items-center text-xs">
                                         <span class="font-semibold text-sm">${emp.name}</span>
@@ -919,7 +1010,6 @@
                 headerHTML += `<button id="add-employee-btn" title="Добавить сотрудника" class="calendar-header-cell flex items-center justify-center cursor-pointer hover:bg-gray-100 dark:hover:bg-zinc-700 transition"><svg class="w-6 h-6 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path></svg></button>`;
             }
             
-            // --- Build Day Rows ---
             let dayRowsHTML = '';
             for (let day = 1; day <= daysInMonth; day++) {
                 const date = new Date(year, month, day);
@@ -957,23 +1047,96 @@
             scheduleContainer.appendChild(gridEl);
         }
 
-        function initializeAppLogic() {
-            document.getElementById('user-email').textContent = currentUser.email;
+        function listenForScheduleData() {
+            if (!currentScheduleId) return;
 
             if (unsubscribeEmployees) unsubscribeEmployees();
-            const employeesQuery = query(collection(db, 'employees'), orderBy('orderIndex'));
+            if (unsubscribeDateOverrides) unsubscribeDateOverrides();
+
+            const employeesQuery = query(collection(db, 'schedules', currentScheduleId, 'employees'), orderBy('orderIndex'));
             unsubscribeEmployees = onSnapshot(employeesQuery, (snapshot) => {
                 employees = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
                 renderApp();
             });
 
-            if (unsubscribeDateOverrides) unsubscribeDateOverrides();
-            unsubscribeDateOverrides = onSnapshot(collection(db, 'dateOverrides'), (snapshot) => {
+            const overridesCol = collection(db, 'schedules', currentScheduleId, 'dateOverrides');
+            unsubscribeDateOverrides = onSnapshot(overridesCol, (snapshot) => {
                 dateOverrides = {};
-                snapshot.forEach(doc => {
-                    dateOverrides[doc.id] = doc.data();
-                });
+                snapshot.forEach(doc => { dateOverrides[doc.id] = doc.data(); });
                 renderApp();
+            });
+        }
+        
+        function renderScheduleSwitcher() {
+            const listContainer = document.getElementById('schedule-list');
+            const titleText = document.getElementById('schedule-title-text');
+            listContainer.innerHTML = '';
+            
+            if (schedules.length === 0) {
+                 listContainer.innerHTML = `<p class="px-4 py-2 text-sm text-secondary">Участки не найдены</p>`;
+                 titleText.textContent = 'График';
+                 return;
+            }
+
+            schedules.forEach(schedule => {
+                const button = document.createElement('button');
+                button.className = 'w-full text-left px-4 py-2 text-sm rounded-md hover:bg-gray-100 dark:hover:bg-zinc-700 transition';
+                if (schedule.id === currentScheduleId) {
+                    button.classList.add('font-bold');
+                    button.style.color = 'var(--accent-color)';
+                }
+                button.textContent = schedule.name;
+                button.addEventListener('click', () => {
+                    switchSchedule(schedule.id);
+                });
+                listContainer.appendChild(button);
+            });
+
+            const currentSchedule = schedules.find(s => s.id === currentScheduleId);
+            titleText.textContent = currentSchedule ? `График: ${currentSchedule.name}` : 'Выберите участок';
+        }
+        
+        function handleAddSchedule() {
+            closeScheduleDropdown();
+            document.getElementById('add-schedule-form').reset();
+            document.getElementById('add-schedule-modal').style.display = 'flex';
+        }
+
+        function switchSchedule(scheduleId) {
+            if (!scheduleId || scheduleId === currentScheduleId) return;
+            currentScheduleId = scheduleId;
+            localStorage.setItem('currentScheduleId', scheduleId);
+            closeScheduleDropdown();
+            renderScheduleSwitcher();
+            listenForScheduleData();
+        }
+
+        function initializeAppLogic() {
+            document.getElementById('user-email').textContent = currentUser.email;
+
+            if (unsubscribeSchedules) unsubscribeSchedules();
+            unsubscribeSchedules = onSnapshot(collection(db, 'schedules'), async (snapshot) => {
+                schedules = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+                if (schedules.length === 0 && isAdmin) {
+                    try {
+                        const docRef = await addDoc(collection(db, 'schedules'), { name: "Этикетка" });
+                        currentScheduleId = docRef.id;
+                        return;
+                    } catch (error) { console.error("Could not create default schedule:", error); }
+                }
+
+                const savedScheduleId = localStorage.getItem('currentScheduleId');
+                if (savedScheduleId && schedules.some(s => s.id === savedScheduleId)) {
+                    currentScheduleId = savedScheduleId;
+                } else if (schedules.length > 0) {
+                    currentScheduleId = schedules[0].id;
+                } else {
+                    currentScheduleId = null;
+                }
+
+                renderScheduleSwitcher();
+                listenForScheduleData();
             });
         }
         
@@ -997,6 +1160,7 @@
                     isAdmin = false;
                     authScreen.classList.remove('hidden');
                     appScreen.classList.add('hidden');
+                    if (unsubscribeSchedules) unsubscribeSchedules();
                     if (unsubscribeEmployees) unsubscribeEmployees();
                     if (unsubscribeDateOverrides) unsubscribeDateOverrides();
                 }
