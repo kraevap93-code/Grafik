@@ -229,15 +229,24 @@
         </header>
 
         <main>
-            <div class="card rounded-2xl p-4 mb-6 flex flex-col sm:flex-row items-center justify-between gap-4">
-                <div class="flex items-center gap-2">
-                    <button id="prev-year-btn" class="px-3 py-1 rounded-md hover:bg-gray-200 dark:hover:bg-zinc-600 transition">&lt;&lt;</button>
-                    <button id="prev-month-btn" class="px-3 py-1 rounded-md hover:bg-gray-200 dark:hover:bg-zinc-600 transition">&lt;</button>
+            <div class="card rounded-2xl p-4 mb-6 flex flex-col gap-4">
+                 <div class="flex flex-col sm:flex-row items-center justify-between gap-4">
+                    <div class="flex items-center gap-2">
+                        <button id="prev-year-btn" class="px-3 py-1 rounded-md hover:bg-gray-200 dark:hover:bg-zinc-600 transition">&lt;&lt;</button>
+                        <button id="prev-month-btn" class="px-3 py-1 rounded-md hover:bg-gray-200 dark:hover:bg-zinc-600 transition">&lt;</button>
+                    </div>
+                    <h2 id="current-month-year" class="text-xl font-bold text-center"></h2>
+                    <div class="flex items-center gap-2">
+                        <button id="next-month-btn" class="px-3 py-1 rounded-md hover:bg-gray-200 dark:hover:bg-zinc-600 transition">&gt;</button>
+                        <button id="next-year-btn" class="px-3 py-1 rounded-md hover:bg-gray-200 dark:hover:bg-zinc-600 transition">&gt;&gt;</button>
+                    </div>
                 </div>
-                <h2 id="current-month-year" class="text-xl font-bold text-center"></h2>
-                <div class="flex items-center gap-2">
-                    <button id="next-month-btn" class="px-3 py-1 rounded-md hover:bg-gray-200 dark:hover:bg-zinc-600 transition">&gt;</button>
-                    <button id="next-year-btn" class="px-3 py-1 rounded-md hover:bg-gray-200 dark:hover:bg-zinc-600 transition">&gt;&gt;</button>
+                <div id="admin-controls-container" class="hidden pt-4 border-t" style="border-color: var(--border-color);">
+                     <p class="text-sm text-center font-medium text-secondary mb-2">Управление графиком на месяц</p>
+                     <div class="flex justify-center items-center gap-4">
+                         <button id="clear-schedule-btn" class="px-4 py-2 text-sm bg-red-100 dark:bg-red-900/50 text-red-700 dark:text-red-300 rounded-lg hover:bg-red-200 dark:hover:bg-red-900 transition">Очистить график</button>
+                         <button id="fill-schedule-btn" class="px-4 py-2 text-sm bg-green-100 dark:bg-green-900/50 text-green-700 dark:text-green-300 rounded-lg hover:bg-green-200 dark:hover:bg-green-900 transition">Заполнить по стандарту</button>
+                     </div>
                 </div>
             </div>
 
@@ -808,6 +817,29 @@
             confirmBtn.dataset.type = 'schedule';
             modal.style.display = 'flex';
         }
+
+        function openResetConfirmModal(resetType) {
+            const modal = document.getElementById('delete-confirm-modal');
+            const confirmBtn = document.getElementById('confirm-delete');
+            const textEl = document.getElementById('delete-confirm-text');
+            const monthYear = document.getElementById('current-month-year').textContent;
+            const currentSchedule = schedules.find(s => s.id === currentScheduleId);
+            const scheduleName = currentSchedule ? currentSchedule.name : 'текущего участка';
+            
+            if (resetType === 'clear') {
+                textEl.textContent = `Вы уверены, что хотите очистить весь график на ${monthYear} для участка "${scheduleName}"? Все дни для всех сотрудников этого участка станут выходными.`;
+                confirmBtn.className = 'px-4 py-2 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600 transition';
+                confirmBtn.textContent = 'Очистить';
+            } else if (resetType === 'fill') {
+                textEl.textContent = `Вы уверены, что хотите сбросить график на ${monthYear} к стандартным настройкам для участка "${scheduleName}"? Все ручные изменения в этом месяце будут удалены.`;
+                confirmBtn.className = 'px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition';
+                confirmBtn.textContent = 'Сбросить';
+            }
+
+            confirmBtn.dataset.type = 'reset-schedule';
+            confirmBtn.dataset.resetType = resetType;
+            modal.style.display = 'flex';
+        }
         
         function openDateOverrideModal(dateString) {
             const modal = document.getElementById('date-override-modal');
@@ -888,18 +920,64 @@
             }
         }
 
-        async function handleConfirmDelete() {
+        async function resetMonthSchedule(resetType) {
+            if (!isAdmin || !currentScheduleId) return;
+
+            const year = currentDate.getFullYear();
+            const month = currentDate.getMonth();
+            const monthPrefix = `${year}-${String(month + 1).padStart(2, '0')}`;
+            const daysInMonth = getDaysInMonth(year, month);
+            const batch = writeBatch(db);
+            const firstDayOfMonth = new Date(year, month, 1);
+            const activeEmployees = employees.filter(e => !e.activeUntil || new Date(e.activeUntil) > firstDayOfMonth);
+
+            activeEmployees.forEach(employee => {
+                const docRef = doc(db, 'schedules', currentScheduleId, 'employees', employee.id);
+                const newOverrides = { ...(employee.scheduleOverrides || {}) };
+
+                if (resetType === 'clear') {
+                    for (let day = 1; day <= daysInMonth; day++) {
+                        const dateString = `${monthPrefix}-${String(day).padStart(2, '0')}`;
+                        newOverrides[dateString] = 'off';
+                    }
+                } else if (resetType === 'fill') {
+                    for (const dateString in newOverrides) {
+                        if (dateString.startsWith(monthPrefix)) {
+                            delete newOverrides[dateString];
+                        }
+                    }
+                }
+                batch.update(docRef, { scheduleOverrides: newOverrides });
+            });
+
+            try {
+                await batch.commit();
+                const logMessage = resetType === 'clear' ? `График очищен на ${monthPrefix}` : `График сброшен к стандартному на ${monthPrefix}`;
+                await logAction(logMessage);
+                showAppMessage("График успешно обновлен.", false);
+            } catch (error) {
+                console.error("Error resetting month schedule:", error);
+                showAppMessage("Не удалось обновить график.");
+            } finally {
+                closeDeleteConfirmModal();
+            }
+        }
+
+        async function handleConfirmAction() {
             const confirmBtn = document.getElementById('confirm-delete');
             const id = confirmBtn.dataset.id;
             const name = confirmBtn.dataset.name;
             const type = confirmBtn.dataset.type;
 
+            // Reset button style to default delete
+            confirmBtn.className = 'px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition';
+            confirmBtn.textContent = 'Удалить';
+
             if (type === 'schedule') {
                 if (!id) return;
                 await deleteSchedule(id);
-                // No separate log needed as it doesn't have a schedule context anymore
                 closeDeleteConfirmModal();
-            } else { // 'employee'
+            } else if (type === 'employee') {
                 if (!currentScheduleId || !id) return;
                 try {
                     const today = new Date();
@@ -907,14 +985,16 @@
                     const employeeDocRef = doc(db, 'schedules', currentScheduleId, 'employees', id);
                     await updateDoc(employeeDocRef, { activeUntil: deactivationDate });
                     await logAction(`Деактивирован сотрудник "${name}"`);
-                    closeDeleteConfirmModal();
                 } catch (error) {
                     console.error("Error deactivating employee:", error);
+                } finally {
                     closeDeleteConfirmModal();
                 }
+            } else if (type === 'reset-schedule') {
+                const resetType = confirmBtn.dataset.resetType;
+                await resetMonthSchedule(resetType);
             }
         }
-
 
         function handleEmployeeHeaderClick(e) {
             if (!isAdmin) return;
@@ -1239,6 +1319,10 @@
             document.getElementById('next-month-btn').addEventListener('click', () => { currentDate.setMonth(currentDate.getMonth() + 1); renderApp(); });
             document.getElementById('next-year-btn').addEventListener('click', () => { currentDate.setFullYear(currentDate.getFullYear() + 1); renderApp(); });
 
+            // Month reset buttons
+            document.getElementById('clear-schedule-btn').addEventListener('click', () => openResetConfirmModal('clear'));
+            document.getElementById('fill-schedule-btn').addEventListener('click', () => openResetConfirmModal('fill'));
+
             const scheduleContainer = document.getElementById('schedule-container');
             
             scheduleContainer.addEventListener('click', (e) => {
@@ -1280,7 +1364,7 @@
             });
             document.getElementById('cancel-delete').addEventListener('click', closeDeleteConfirmModal);
             document.querySelector('#delete-confirm-modal .modal-backdrop').addEventListener('click', closeDeleteConfirmModal);
-            document.getElementById('confirm-delete').addEventListener('click', handleConfirmDelete);
+            document.getElementById('confirm-delete').addEventListener('click', handleConfirmAction);
             document.getElementById('date-override-form').addEventListener('submit', handleSaveDateOverride);
             document.getElementById('cancel-date-override-modal').addEventListener('click', closeDateOverrideModal);
             document.querySelector('#date-override-modal .modal-backdrop').addEventListener('click', closeDateOverrideModal);
@@ -1324,6 +1408,12 @@
         }
 
         function renderApp() {
+            // Show/hide admin controls for month reset
+            const adminControls = document.getElementById('admin-controls-container');
+            if (adminControls) {
+                adminControls.classList.toggle('hidden', !isAdmin);
+            }
+
             const scheduleContainer = document.getElementById('schedule-container');
             if (!currentScheduleId) {
                 scheduleContainer.innerHTML = `<p class="text-center p-8 text-secondary">Выберите или создайте участок, чтобы начать работу.</p>`;
@@ -1477,13 +1567,20 @@
             unsubscribeEmployees = onSnapshot(employeesQuery, (snapshot) => {
                 employees = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
                 renderApp();
+            }, (error) => {
+                console.error("Error listening to employees:", error);
+                showAppMessage("Ошибка загрузки сотрудников. Проверьте права доступа.");
             });
+
 
             const overridesCol = collection(db, 'schedules', currentScheduleId, 'dateOverrides');
             unsubscribeDateOverrides = onSnapshot(overridesCol, (snapshot) => {
                 dateOverrides = {};
                 snapshot.forEach(doc => { dateOverrides[doc.id] = doc.data(); });
                 renderApp();
+            }, (error) => {
+                console.error("Error listening to date overrides:", error);
+                showAppMessage("Ошибка загрузки данных о днях.");
             });
         }
         
@@ -1608,6 +1705,9 @@
 
                 renderScheduleSwitcher();
                 listenForScheduleData();
+            }, (error) => {
+                console.error("Error listening to schedules:", error);
+                showAppMessage("Ошибка загрузки списка участков.");
             });
         }
         
