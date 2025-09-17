@@ -189,6 +189,9 @@
 
     <!-- Main App Screen (hidden by default) -->
     <div id="app-screen" class="hidden p-4 sm:p-6 lg:p-8">
+         <!-- App-wide message pop-up -->
+        <div id="app-message" class="fixed top-5 right-5 z-[100] bg-red-500 text-white p-4 rounded-lg shadow-lg opacity-0 transition-opacity duration-300 pointer-events-none"></div>
+
         <header class="mb-6 pb-6 border-b" style="border-color: var(--border-color);">
             <div class="flex flex-col sm:flex-row justify-between items-start gap-4">
                 <div id="user-info">
@@ -212,7 +215,7 @@
                     <span id="schedule-title-text">График</span>
                     <svg id="schedule-chevron" class="w-6 h-6 transition-transform duration-200" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg>
                 </button>
-                <div id="schedule-dropdown" class="hidden absolute z-10 mt-2 w-64 origin-top-right right-1/2 translate-x-1/2 card rounded-xl p-2 text-left shadow-2xl">
+                <div id="schedule-dropdown" class="hidden absolute z-10 mt-2 w-72 origin-top-right right-1/2 translate-x-1/2 card rounded-xl p-2 text-left shadow-2xl">
                     <div id="schedule-list" class="space-y-1 max-h-60 overflow-y-auto">
                         <!-- Schedule items will be populated here -->
                     </div>
@@ -283,7 +286,7 @@
                         <input type="date" id="schedule-start-date" required class="form-input w-full px-4 py-2 border rounded-lg transition">
                     </div>
                      <!-- Vacation/Leave Section -->
-                    <div class="border-t pt-4 mt-4" style="border-color: var(--border-color);">
+                     <div class="border-t pt-4 mt-4" style="border-color: var(--border-color);">
                          <label class="block text-sm font-medium form-label mb-2">Отпуск / Отгулы</label>
                          <div id="leave-periods-list" class="space-y-2">
                              <!-- Leave period inputs will be added here -->
@@ -378,18 +381,19 @@
         </div>
     </div>
     
-    <!-- Add Schedule Modal -->
-    <div id="add-schedule-modal" class="hidden fixed inset-0 z-50 items-center justify-center p-4">
+    <!-- Add/Edit Schedule Modal -->
+    <div id="schedule-edit-modal" class="hidden fixed inset-0 z-50 items-center justify-center p-4">
         <div class="modal-backdrop fixed inset-0"></div>
         <div class="card p-6 rounded-2xl w-full max-w-sm m-4 relative">
-            <h3 class="text-xl font-semibold mb-4 header-title">Добавить новый участок</h3>
-            <form id="add-schedule-form">
+            <h3 id="schedule-edit-modal-title" class="text-xl font-semibold mb-4 header-title">Добавить новый участок</h3>
+            <form id="schedule-edit-form">
+                <input type="hidden" id="schedule-edit-id">
                 <div>
                     <label for="schedule-name-input" class="block text-sm font-medium form-label mb-1">Название участка</label>
                     <input type="text" id="schedule-name-input" required class="form-input w-full px-4 py-2 border rounded-lg transition">
                 </div>
                 <div class="mt-6 flex justify-end gap-2">
-                    <button type="button" id="cancel-add-schedule" class="px-4 py-2 bg-gray-200 dark:bg-zinc-600 text-gray-800 dark:text-zinc-200 rounded-lg hover:bg-gray-300 dark:hover:bg-zinc-500 transition">Отмена</button>
+                    <button type="button" id="cancel-schedule-edit" class="px-4 py-2 bg-gray-200 dark:bg-zinc-600 text-gray-800 dark:text-zinc-200 rounded-lg hover:bg-gray-300 dark:hover:bg-zinc-500 transition">Отмена</button>
                     <button type="submit" class="btn-primary px-4 py-2 rounded-lg transition">Сохранить</button>
                 </div>
             </form>
@@ -457,7 +461,20 @@
         function closeCommentModal() { document.getElementById('comment-modal').style.display = 'none'; }
         function closeDeleteConfirmModal() { document.getElementById('delete-confirm-modal').style.display = 'none'; }
         function closeDateOverrideModal() { document.getElementById('date-override-modal').style.display = 'none'; }
-        function closeAddScheduleModal() { document.getElementById('add-schedule-modal').style.display = 'none'; }
+        function closeScheduleEditModal() { document.getElementById('schedule-edit-modal').style.display = 'none'; }
+
+        function showAppMessage(message, isError = true) {
+            const el = document.getElementById('app-message');
+            if (!el) return;
+            el.textContent = message;
+            el.classList.toggle('bg-red-500', isError);
+            el.classList.toggle('bg-green-500', !isError);
+            el.classList.remove('opacity-0');
+            
+            setTimeout(() => {
+                el.classList.add('opacity-0');
+            }, 4000);
+        }
 
         function saveScrollPosition() {
             const scrollContainer = document.getElementById('main-scroll-container');
@@ -565,7 +582,7 @@
             } catch (error) { 
                 console.error("Error logging action:", error); 
                 if (isAdmin) {
-                    alert("Ошибка записи в историю. Проверьте правила безопасности Firestore для пути 'schedules/" + currentScheduleId + "/history'.");
+                    showAppMessage("Ошибка записи в историю.");
                 }
             }
         }
@@ -775,8 +792,20 @@
         function openDeleteConfirmModal(employee) {
             const modal = document.getElementById('delete-confirm-modal');
             document.getElementById('delete-confirm-text').textContent = `Удалить сотрудника "${employee.name}"? Его график останется в прошлом, но будет убран из текущего и будущих месяцев.`;
-            document.getElementById('confirm-delete').dataset.id = employee.id;
-            document.getElementById('confirm-delete').dataset.name = employee.name;
+            const confirmBtn = document.getElementById('confirm-delete');
+            confirmBtn.dataset.id = employee.id;
+            confirmBtn.dataset.name = employee.name;
+            confirmBtn.dataset.type = 'employee';
+            modal.style.display = 'flex';
+        }
+
+        function openScheduleDeleteConfirm(id, name) {
+            const modal = document.getElementById('delete-confirm-modal');
+            document.getElementById('delete-confirm-text').textContent = `Удалить участок "${name}"? Все сотрудники и данные этого участка будут безвозвратно удалены.`;
+            const confirmBtn = document.getElementById('confirm-delete');
+            confirmBtn.dataset.id = id;
+            confirmBtn.dataset.name = name;
+            confirmBtn.dataset.type = 'schedule';
             modal.style.display = 'flex';
         }
         
@@ -818,22 +847,66 @@
                 }
             } catch(error) {
                 console.error("Error saving date override:", error);
-                alert("Не удалось сохранить изменения для даты.");
+                showAppMessage("Не удалось сохранить изменения для даты.");
             }
             closeDateOverrideModal();
         }
+        
+        async function deleteSchedule(scheduleId) {
+            if (!isAdmin) return;
+            
+            const deleteCollection = async (collRef) => {
+                const snapshot = await getDocs(collRef);
+                if (snapshot.size === 0) return;
+                const batch = writeBatch(db);
+                snapshot.docs.forEach(doc => batch.delete(doc.ref));
+                await batch.commit();
+            };
+
+            try {
+                await deleteCollection(collection(db, 'schedules', scheduleId, 'employees'));
+                await deleteCollection(collection(db, 'schedules', scheduleId, 'history'));
+                await deleteCollection(collection(db, 'schedules', scheduleId, 'dateOverrides'));
+                await deleteDoc(doc(db, 'schedules', scheduleId));
+
+                if (currentScheduleId === scheduleId) {
+                    const newSchedules = schedules.filter(s => s.id !== scheduleId);
+                    if (newSchedules.length > 0) {
+                        switchSchedule(newSchedules[0].id);
+                    } else {
+                        currentScheduleId = null;
+                        localStorage.removeItem('currentScheduleId');
+                        employees = [];
+                        dateOverrides = {};
+                        renderScheduleSwitcher();
+                        renderApp();
+                    }
+                }
+            } catch (error) {
+                console.error("Error deleting schedule:", error);
+                showAppMessage("Не удалось удалить участок.");
+            }
+        }
 
         async function handleConfirmDelete() {
-            if (!currentScheduleId) return;
-            const employeeId = document.getElementById('confirm-delete').dataset.id;
-            const employeeName = document.getElementById('confirm-delete').dataset.name;
-            if (employeeId) {
+            const confirmBtn = document.getElementById('confirm-delete');
+            const id = confirmBtn.dataset.id;
+            const name = confirmBtn.dataset.name;
+            const type = confirmBtn.dataset.type;
+
+            if (type === 'schedule') {
+                if (!id) return;
+                await deleteSchedule(id);
+                // No separate log needed as it doesn't have a schedule context anymore
+                closeDeleteConfirmModal();
+            } else { // 'employee'
+                if (!currentScheduleId || !id) return;
                 try {
                     const today = new Date();
                     const deactivationDate = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().split('T')[0];
-                    const employeeDocRef = doc(db, 'schedules', currentScheduleId, 'employees', employeeId);
+                    const employeeDocRef = doc(db, 'schedules', currentScheduleId, 'employees', id);
                     await updateDoc(employeeDocRef, { activeUntil: deactivationDate });
-                    await logAction(`Деактивирован сотрудник "${employeeName}"`);
+                    await logAction(`Деактивирован сотрудник "${name}"`);
                     closeDeleteConfirmModal();
                 } catch (error) {
                     console.error("Error deactivating employee:", error);
@@ -841,6 +914,7 @@
                 }
             }
         }
+
 
         function handleEmployeeHeaderClick(e) {
             if (!isAdmin) return;
@@ -992,19 +1066,38 @@
             closeEmployeeModal();
         }
         
-        async function handleSaveSchedule(e) {
+        async function handleSaveScheduleEdit(e) {
             e.preventDefault();
+            if (!isAdmin) return;
+
             const scheduleNameInput = document.getElementById('schedule-name-input');
             const scheduleName = scheduleNameInput.value.trim();
+            const scheduleId = document.getElementById('schedule-edit-id').value;
+            
             if (scheduleName) {
                 try {
-                    const docRef = await addDoc(collection(db, 'schedules'), { name: scheduleName });
-                    switchSchedule(docRef.id);
+                    if (scheduleId) {
+                        // Editing existing schedule
+                        const scheduleRef = doc(db, 'schedules', scheduleId);
+                        await updateDoc(scheduleRef, { name: scheduleName });
+                    } else {
+                        if (!currentUser) {
+                           console.error("Cannot create schedule: user is not authenticated.");
+                           showAppMessage("Ошибка: пользователь не авторизован.");
+                           return;
+                        }
+                        // Adding new schedule
+                        const docRef = await addDoc(collection(db, 'schedules'), { 
+                            name: scheduleName,
+                            owner: currentUser.uid // Add owner UID to new schedule
+                        });
+                        switchSchedule(docRef.id);
+                    }
                 } catch (error) {
-                    console.error("Error adding new schedule:", error);
-                    alert("Не удалось добавить новый участок.");
+                    console.error("Error saving schedule:", error);
+                    showAppMessage("Не удалось сохранить участок.");
                 } finally {
-                    closeAddScheduleModal();
+                    closeScheduleEditModal();
                 }
             }
         }
@@ -1084,7 +1177,7 @@
                         const centerX = employeeAreaLeft + (employeeAreaRight - employeeAreaLeft) / 2;
                         popup.style.left = `${centerX}px`;
                     } else {
-                         popup.style.left = '50%';
+                        popup.style.left = '50%';
                     }
                 } else {
                      popup.style.left = '50%';
@@ -1196,7 +1289,21 @@
                 e.stopPropagation();
                 toggleScheduleDropdown();
             });
-            document.getElementById('add-schedule-btn-dropdown').addEventListener('click', handleAddSchedule);
+            document.getElementById('add-schedule-btn-dropdown').addEventListener('click', () => openScheduleEditModal());
+            
+            document.getElementById('schedule-list').addEventListener('click', (e) => {
+                 const editBtn = e.target.closest('.edit-schedule-btn');
+                 if (editBtn) {
+                     openScheduleEditModal(editBtn.dataset.id, editBtn.dataset.name);
+                     return;
+                 }
+                 const deleteBtn = e.target.closest('.delete-schedule-btn');
+                 if (deleteBtn) {
+                     openScheduleDeleteConfirm(deleteBtn.dataset.id, deleteBtn.dataset.name);
+                     return;
+                 }
+            });
+
             document.addEventListener('click', (e) => {
                 const dropdown = document.getElementById('schedule-dropdown');
                 const titleButton = document.getElementById('schedule-title-button');
@@ -1204,9 +1311,9 @@
                     closeScheduleDropdown();
                 }
             });
-            document.getElementById('add-schedule-form').addEventListener('submit', handleSaveSchedule);
-            document.getElementById('cancel-add-schedule').addEventListener('click', closeAddScheduleModal);
-            document.querySelector('#add-schedule-modal .modal-backdrop').addEventListener('click', closeAddScheduleModal);
+            document.getElementById('schedule-edit-form').addEventListener('submit', handleSaveScheduleEdit);
+            document.getElementById('cancel-schedule-edit').addEventListener('click', closeScheduleEditModal);
+            document.querySelector('#schedule-edit-modal .modal-backdrop').addEventListener('click', closeScheduleEditModal);
             
             document.getElementById('add-leave-btn').addEventListener('click', () => addLeavePeriodInputs());
             document.getElementById('leave-periods-list').addEventListener('click', (e) => {
@@ -1392,8 +1499,11 @@
             }
 
             schedules.forEach(schedule => {
+                const itemDiv = document.createElement('div');
+                itemDiv.className = 'flex items-center justify-between gap-2 group p-1 rounded-md hover:bg-gray-100 dark:hover:bg-zinc-700';
+
                 const button = document.createElement('button');
-                button.className = 'w-full text-left px-4 py-2 text-sm rounded-md hover:bg-gray-100 dark:hover:bg-zinc-700 transition';
+                button.className = 'w-full text-left px-3 py-1 text-sm rounded-md transition';
                 if (schedule.id === currentScheduleId) {
                     button.classList.add('font-bold');
                     button.style.color = 'var(--accent-color)';
@@ -1402,21 +1512,48 @@
                 button.addEventListener('click', () => {
                     switchSchedule(schedule.id);
                 });
-                listContainer.appendChild(button);
+                
+                itemDiv.appendChild(button);
+
+                if (isAdmin) {
+                    const controlsDiv = document.createElement('div');
+                    controlsDiv.className = 'flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity';
+                    controlsDiv.innerHTML = `
+                        <button class="edit-schedule-btn p-1.5 rounded hover:bg-yellow-200 dark:hover:bg-zinc-600" data-id="${schedule.id}" data-name="${schedule.name}" title="Редактировать участок">
+                            <svg class="w-4 h-4 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.5L16.732 3.732z"></path></svg>
+                        </button>
+                        <button class="delete-schedule-btn p-1.5 rounded hover:bg-red-200 dark:hover:bg-zinc-600" data-id="${schedule.id}" data-name="${schedule.name}" title="Удалить участок">
+                            <svg class="w-4 h-4 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                        </button>
+                    `;
+                    itemDiv.appendChild(controlsDiv);
+                }
+
+                listContainer.appendChild(itemDiv);
             });
 
             const currentSchedule = schedules.find(s => s.id === currentScheduleId);
             titleText.textContent = currentSchedule ? `График: ${currentSchedule.name}` : 'Выберите участок';
         }
         
-        function handleAddSchedule() {
+        function openScheduleEditModal(scheduleId = null, scheduleName = '') {
             closeScheduleDropdown();
-            document.getElementById('add-schedule-form').reset();
-            document.getElementById('add-schedule-modal').style.display = 'flex';
+            const modal = document.getElementById('schedule-edit-modal');
+            const form = document.getElementById('schedule-edit-form');
+            form.reset();
+
+            document.getElementById('schedule-edit-modal-title').textContent = scheduleId ? 'Редактировать участок' : 'Добавить новый участок';
+            document.getElementById('schedule-edit-id').value = scheduleId || '';
+            document.getElementById('schedule-name-input').value = scheduleName || '';
+
+            modal.style.display = 'flex';
         }
 
         function switchSchedule(scheduleId) {
-            if (!scheduleId || scheduleId === currentScheduleId) return;
+            if (!scheduleId || scheduleId === currentScheduleId) {
+                closeScheduleDropdown();
+                return;
+            }
             currentScheduleId = scheduleId;
             localStorage.setItem('currentScheduleId', scheduleId);
             closeScheduleDropdown();
@@ -1428,7 +1565,8 @@
             try {
                 const adminDoc = await getDoc(doc(db, 'config', 'admins'));
                 if (adminDoc.exists()) {
-                    adminEmails = adminDoc.data().emails.map(email => email.toLowerCase());
+                    const adminData = adminDoc.data();
+                    adminEmails = (adminData?.emails || []).map(email => email.toLowerCase());
                 } else {
                     adminEmails = []; // No admin doc found
                 }
@@ -1444,22 +1582,25 @@
 
             if (unsubscribeSchedules) unsubscribeSchedules();
             unsubscribeSchedules = onSnapshot(collection(db, 'schedules'), async (snapshot) => {
-                schedules = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                schedules = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })).sort((a,b) => a.name.localeCompare(b.name));
 
                 if (schedules.length === 0 && isAdmin) {
                     try {
-                        const docRef = await addDoc(collection(db, 'schedules'), { name: "Этикетка" });
+                        const docRef = await addDoc(collection(db, 'schedules'), { 
+                            name: "Основной",
+                            owner: user.uid // Add owner UID to default schedule
+                        });
                         currentScheduleId = docRef.id;
                         return; // onSnapshot will re-trigger with the new data
                     } catch (error) { console.error("Could not create default schedule:", error); }
                 }
+                
+                const savedScheduleId = localStorage.getItem('currentScheduleId');
+                const savedScheduleExists = schedules.some(s => s.id === savedScheduleId);
 
-                const etiquetteSchedule = schedules.find(s => s.name === "Этикетка");
-
-                if (etiquetteSchedule) {
-                    currentScheduleId = etiquetteSchedule.id;
+                if (savedScheduleId && savedScheduleExists) {
+                    currentScheduleId = savedScheduleId;
                 } else if (schedules.length > 0) {
-                    // Fallback to first schedule if "Этикетка" doesn't exist
                     currentScheduleId = schedules[0].id;
                 } else {
                     currentScheduleId = null;
@@ -1502,4 +1643,3 @@
     </script>
 </body>
 </html>
-
