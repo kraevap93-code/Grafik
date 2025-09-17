@@ -358,7 +358,7 @@
     </div>
 
     <!-- Comment Display Popup -->
-    <div id="comment-display-popup" class="hidden fixed top-1/2 -translate-x-1/2 -translate-y-1/2 z-50 card p-6 rounded-2xl w-full max-w-md shadow-xl">
+    <div id="comment-display-popup" class="hidden fixed top-1/2 -translate-x-1/2 -translate-y-1/2 z-50 card p-6 rounded-2xl w-full max-w-md shadow-xl pointer-events-auto">
         <p id="comment-display-text" class="text-2xl font-bold whitespace-pre-wrap header-title text-center"></p>
     </div>
 
@@ -397,6 +397,7 @@
         
         let isLoginMode = true;
         let draggedItem = null;
+        let commentPopupTimer = null; 
 
         const RUSSIAN_HOLIDAYS_2025 = ['2025-01-01', '2025-01-02', '2025-01-03', '2025-01-04', '2025-01-05', '2025-01-06', '2025-01-07', '2025-01-08', '2025-02-23', '2025-03-08', '2025-05-01', '2025-05-09', '2025-06-12', '2025-11-04'];
         const COMMENT_ICON_SVG = `<svg class="comment-indicator" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M18 5v8a2 2 0 01-2 2h-5l-5 4v-4H4a2 2 0 01-2-2V5a2 2 0 012-2h12a2 2 0 012 2zM9 9a1 1 0 11-2 0 1 1 0 012 0zm4 0a1 1 0 11-2 0 1 1 0 012 0z" clip-rule="evenodd"></path></svg>`;
@@ -934,22 +935,36 @@
         }
 
         function handleCalendarMouseOver(e) {
+            // Отменяем любой существующий таймер, который мог бы скрыть окно
+            clearTimeout(commentPopupTimer);
+
+            const popup = document.getElementById('comment-display-popup');
             const target = e.target.closest('.schedule-cell, [data-date-cell="true"]');
-            if (!target) return;
+            
+            // Сначала убираем подсветку со всех предыдущих ячеек
+            document.querySelectorAll('.date-highlight').forEach(el => el.classList.remove('date-highlight'));
+
+            if (!target) {
+                popup.classList.add('hidden'); // Если курсор ушел с таблицы, скрываем
+                return;
+            }
+
+            // Подсвечиваем текущий столбец
             const day = target.dataset.day;
             if (day) {
                 document.querySelectorAll(`[data-day="${day}"]`).forEach(el => el.classList.add('date-highlight'));
             }
+
+            // Ищем комментарий
             let comment = null;
             if (target.dataset.employeeId) {
                 const employee = employees.find(emp => emp.id === target.dataset.employeeId);
                 comment = employee?.scheduleComments?.[target.dataset.date];
             } else {
                 const dateCell = e.target.closest('[data-date-cell="true"]');
-                if(dateCell) comment = dateOverrides[dateCell.dataset.date]?.comment;
+                if (dateCell) comment = dateOverrides[dateCell.dataset.date]?.comment;
             }
             
-            const popup = document.getElementById('comment-display-popup');
             if (comment) {
                 const grid = document.querySelector('#schedule-container .calendar-grid');
                 if (grid) {
@@ -972,19 +987,23 @@
 
                 popup.querySelector('#comment-display-text').textContent = comment;
                 popup.classList.remove('hidden');
+                
+                // Устанавливаем таймер на скрытие через 3 секунды
+                commentPopupTimer = setTimeout(() => {
+                    popup.classList.add('hidden');
+                }, 3000);
+
+            } else {
+                // Если комментария нет, окно должно быть скрыто
+                popup.classList.add('hidden');
             }
         }
         
         function handleCalendarMouseOut(e) {
-            const popup = document.getElementById('comment-display-popup');
-            popup.classList.add('hidden');
-            popup.style.left = ''; // Reset position
-
-            const target = e.target.closest('.schedule-cell, [data-date-cell="true"]');
-            if (!target) return;
-            const day = target.dataset.day;
-            if (day) {
-                document.querySelectorAll(`[data-day="${day}"]`).forEach(el => el.classList.remove('date-highlight'));
+            // Убираем подсветку, только если курсор покинул всю область сетки
+            const scheduleContainer = document.getElementById('schedule-container');
+            if (scheduleContainer && !scheduleContainer.contains(e.relatedTarget)) {
+                document.querySelectorAll('.date-highlight').forEach(el => el.classList.remove('date-highlight'));
             }
         }
 
